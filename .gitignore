@@ -1,13 +1,23 @@
-# IntelliJ IDEA
+# IDE Files (Cấu hình riêng của máy bạn)
 .idea/
 *.iml
+*.ipr
+*.iws
+.vscode/
 
-# Gradle
-.gradle/
+# Build & Compiled Files (File biên dịch tạm)
 build/
-
-# Spring Boot
+.gradle/
+out/
 target/
+bin/
 
-# Environment
+# OS Files (File rác của hệ điều hành)
+.DS_Store
+Thumbs.db
+
+# Environment & Local Configuration (Cấu hình chứa mật khẩu/database riêng)
 .env
+*.local
+application-local.properties
+application-local.yml
