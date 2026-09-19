@@ -95,13 +95,14 @@ Order 1 ──── 1 Payment
 ---
 
 # 5. Inventory — Quản lý nguyên liệu
-
+vấn đề : nếu món ăn bị làm sai thì sao 
 ### Ingredient
 
 * Thêm / sửa / xóa nguyên liệu
 * Xem danh sách nguyên liệu
 * Theo dõi số lượng tồn
 * Thiết lập mức tồn tối thiểu
+
 
 ### StockTransaction
 
