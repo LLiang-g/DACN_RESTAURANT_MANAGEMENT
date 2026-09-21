@@ -1,37 +1,23 @@
-HELP.md
-.gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
-### IntelliJ IDEA ###
-.idea
-*.iws
+# IDE Files (Cấu hình riêng của máy bạn)
+.idea/
 *.iml
 *.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
+*.iws
 .vscode/
+
+# Build & Compiled Files (File biên dịch tạm)
+build/
+.gradle/
+out/
+target/
+bin/
+
+# OS Files (File rác của hệ điều hành)
+.DS_Store
+Thumbs.db
+
+# Environment & Local Configuration (Cấu hình chứa mật khẩu/database riêng)
+.env
+*.local
+application-local.properties
+application-local.yml
