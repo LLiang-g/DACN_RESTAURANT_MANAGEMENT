@@ -18,6 +18,8 @@ phiếu nhập hàng :
 vấn đề :
     + nếu 1 món ăn bị làm sai nguyên liệu thì hệ thống phải xử lý như thế nào
     + khách hàng muốn thêm món thì làm sao để add được những món đó vào hóa đơn tổng luôn 
+    + việc trừ nguyên liệu : nếu ta làm logic là khi đầu bếp nấu thì mới trừ nguyên liệu thì giờ đây vấn đề là nếu khách hàng order dồn dập nhiều đơn 1 món đó thì sao ?
+    lúc này đơn chưa làm nên chưa trừ giải quyết là khi khách order thì ta sẽ trừ ảo trong kho lỡ như có hủy đơn hủy món thì cộng lại.
 
 
 
