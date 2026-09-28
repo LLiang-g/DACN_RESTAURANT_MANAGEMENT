@@ -1,7 +1,7 @@
 package com.sccgroup.restaurant_management.domain;
 
 import com.sccgroup.restaurant_management.kds.repository.KitchenStationRepository;
-import com.sccgroup.restaurant_management.kds.entity.KitchenStation;
+import com.sccgroup.restaurant_management.domain.entity.account.KitchenStation;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
