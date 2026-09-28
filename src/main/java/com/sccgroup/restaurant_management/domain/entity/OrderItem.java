@@ -1,0 +1,76 @@
+package com.sccgroup.restaurant_management.domain.entity;
+
+import com.sccgroup.restaurant_management.customer.entity.Food;
+import com.sccgroup.restaurant_management.domain.entity.OrderItemStatus;
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "order_item")
+public class OrderItem {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "food_id", nullable = false)
+    private Food food;
+
+    private Integer quantity;
+
+    @Enumerated(EnumType.STRING)
+    private OrderItemStatus status;
+
+    @Column(name = "reject_reason")
+    private String rejectReason;
+
+    @Column(name = "started_cooking_at")
+    private LocalDateTime startedCookingAt; // thời điểm trừ kho theo BOM
+
+    @Column(name = "done_at")
+    private LocalDateTime doneAt;
+
+    @Column(name = "served_at")
+    private LocalDateTime servedAt;
+
+    @Column(name = "unit_price", precision = 12, scale = 2)
+    private BigDecimal unitPrice; // giá chốt tại thời điểm order
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "combo_order_id") // NULL nếu gọi lẻ
+    private OrderCombo orderCombo;
+
+    protected OrderItem() {}
+
+    public OrderItem(Order order, Food food, Integer quantity, BigDecimal unitPrice) {
+        this.order = order;
+        this.food = food;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
+        this.status = OrderItemStatus.PENDING;
+    }
+
+    public Long getId() { return id; }
+    public Order getOrder() { return order; }
+    public Food getFood() { return food; }
+    public Integer getQuantity() { return quantity; }
+    public OrderItemStatus getStatus() { return status; }
+    public void setStatus(OrderItemStatus status) { this.status = status; }
+    public String getRejectReason() { return rejectReason; }
+    public void setRejectReason(String rejectReason) { this.rejectReason = rejectReason; }
+    public LocalDateTime getStartedCookingAt() { return startedCookingAt; }
+    public void setStartedCookingAt(LocalDateTime t) { this.startedCookingAt = t; }
+    public LocalDateTime getDoneAt() { return doneAt; }
+    public void setDoneAt(LocalDateTime t) { this.doneAt = t; }
+    public LocalDateTime getServedAt() { return servedAt; }
+    public void setServedAt(LocalDateTime t) { this.servedAt = t; }
+    public BigDecimal getUnitPrice() { return unitPrice; }
+    public OrderCombo getOrderCombo() { return orderCombo; }
+    public void setOrderCombo(OrderCombo orderCombo) { this.orderCombo = orderCombo; }
+}
