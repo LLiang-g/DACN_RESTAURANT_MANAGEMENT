@@ -27,7 +27,10 @@
 ```
 com.sccgroup.restaurant_management/
 ├── domain/
-│   └── entity/          ← TOÀN BỘ 20 entity + enum của hệ thống nằm ở đây
+│   ├── entity/          ← TOÀN BỘ 20 entity + enum của hệ thống nằm ở đây
+│   └── repository/
+│        ├── account
+│        ├── menu
 ├── admin/
 │   ├── controller/
 │   ├── service/
@@ -45,12 +48,16 @@ com.sccgroup.restaurant_management/
 │   ├── service/          (chưa tạo)
 │   └── (dto — chưa tạo)
 ├── common/
-│   └── exception/        ← ErrorResponse, ResourceNotFoundException, BusinessException, GlobalExceptionHandler
+│   ├──exception/        ← ErrorResponse, ResourceNotFoundException, BusinessException, GlobalExceptionHandler
+│   ├──security/ ← AppUserPrincipal, JwtUtil,JwtAuthFilter,SecurityConfig,CustomUserDetailsService,AuthController
+│     
 ├── config/
 │   ├── CorsConfig
 │   └── WebSocketConfig    ← STOMP endpoint /ws, broker /topic, prefix /app
 └── RestaurantManagementApplication
 ```
+lưu ý : khi viết Controller phải dựa vào SecurityConfig
+
 
 **Quyết định kiến trúc quan trọng**: TẤT CẢ entity đặt chung trong `domain/entity` (không tách theo module), để tránh các module phải import chéo entity của nhau. Các module (`admin`, `customer`, `kds`, `pos`) chỉ chứa `controller`, `service`, `dto`, `repository` của riêng logic nghiệp vụ đó — còn `repository` của entity thì đặt cạnh entity trong `domain`.
 
