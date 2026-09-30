@@ -30,29 +30,6 @@ vấn đề nghiệp vụ :
 
 
 
-## `domain/entity` (xuyên suốt luồng nghiệp vụ)
-`Order`, `OrderItem`, `OrderItemOption`, `OrderCombo`, `Invoice`,
-`RestaurantTable`, `CallStaffRequest`, `ActivityLog`
-- Enum: `OrderItemStatus`, `InvoiceStatus`, `PaymentMethod`, `TableStatus`,
-- `CallStaffStatus`, `AccountType`
-
-## `customer/entity` (thực đơn khách xem & chọn)
-`Category`, `Food`, `OptionGroup`, `Option`, `Combo`, `ComboItem`
-- Enum: `SelectionType`, `AdjustType`, `DiscountType`
-
-## `kds/entity` (cấu trúc khu bếp)
-`KitchenStation`, `KitchenAccount`
-
-## `admin/entity` (kho & tài khoản nhân viên)
-`Ingredient`, `Recipe`, `StockTransaction`, `StaffAccount`
-- Enum: `StockTransactionType`, `StaffRole`
-
-## `pos`
-Không có entity riêng, dùng các entity trong `domain` (Order, Invoice, CallStaffRequest...) vì nghiệp vụ lễ tân chủ yếu thao tác trên chúng.
-
-
-
-
 
 có thứ gì đó :
     
@@ -61,3 +38,12 @@ có thứ gì đó :
     Không mất yêu cầu: nếu lễ tân đang mất kết nối hoặc chưa mở màn hình, yêu cầu vẫn nằm trong DB với trạng thái PENDING, khi mở lại vẫn thấy danh sách chưa xử lý.
     Tránh trùng lặp: khách bấm nhiều lần thì kiểm tra được bàn đó đã có yêu cầu PENDING chưa.
     Đo được chất lượng phục vụ: resolvedAt - createdAt cho biết mất bao lâu mới có người đến bàn, phục vụ cho thống kê sau này.
+
+Khách bấm "Gửi đơn"
+
+    → POST /api/customer/orders (REST, HTTP thường)
+    → Server lưu OrderItem vào MySQL (status = PENDING)
+    → Server gọi messagingTemplate.convertAndSend("/topic/kds/1", dto)
+    → Mọi client đang subscribe "/topic/kds/1" nhận được dto ngay lập tức
+    → Màn hình KDS bếp nóng tự cập nhật giao diện, không cần F5Điểm cần chú ý : khách không gửi qua WebSocket — khách vẫn gọi REST API như bình thường (đúng, đơn giản, dễ debug).
+    WebSocket chỉ dùng ở chiều server → client để thông báo, sau khi dữ liệu đã lưu chắc chắn vào DB.
