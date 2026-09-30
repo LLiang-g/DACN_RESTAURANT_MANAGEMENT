@@ -29,7 +29,7 @@ com.sccgroup.restaurant_management/
 ├── domain/
 │   ├── entity/          ← TOÀN BỘ 20 entity + enum của hệ thống nằm ở đây
 │   └── repository/
-│        ├── account
+│        ├── account    ← KitchenAccountRepository, StaffAccountRepository
 │        ├── menu
 ├── admin/
 │   ├── controller/
@@ -107,9 +107,41 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 - Cách dùng: sau khi `save()` dữ liệu qua REST API, gọi `simpMessagingTemplate.convertAndSend("/topic/...", dto)` để đẩy cập nhật realtime
 - Đã test thông bằng REST + STOMP client HTML tạm thời — **hạ tầng đã xác nhận chạy được, chưa gắn vào nghiệp vụ thật**
 
+### 6. Quy ước viết Controller từ khi có JWT
+  Lấy thông tin người đang đăng nhập trong Controller: không tự parse token thủ công, dùng Authentication do Spring tiêm sẵn:
+    
+    @GetMapping("/api/pos/orders")
+     public List<OrderDto> getOrders(Authentication authentication) {
+        AppUserPrincipal principal = (AppUserPrincipal) authentication.getPrincipal();
+        Long accountId = principal.getAccountId();     // dùng để ghi ActivityLog
+        String accountType = principal.getAccountType(); // "STAFF" hoặc "KITCHEN"
+     ...
+     }
+  Không tự kiểm tra role bằng if/else trong method — SecurityConfig đã chặn ở tầng route (hasRole, hasAnyRole).
+  Nếu cần giới hạn role ở mức method cụ thể hơn route, dùng
+     
+      @PreAuthorize("hasRole('ADMIN')")
+      @DeleteMapping("/api/admin/food/{id}")
+      public void deleteFood(@PathVariable Long id) { ... }
+
+  - (Muốn dùng @PreAuthorize phải thêm @EnableMethodSecurity vào SecurityConfig.)
+  - Mọi request cần xác thực đều phải gửi header:
+       `Authorization: Bearer <token>`
+  - Thiếu header/sai token → 401 (chưa đăng nhập); đúng token nhưng sai role → 403 (không đủ quyền).
+  - Khi test Postman, set header này thủ công hoặc dùng tab Authorization → Bearer Token. 
+  - Ghi ActivityLog: mọi hành động làm thay đổi dữ liệu quan trọng (duyệt/từ chối đơn, sửa menu, điều chỉnh kho...) phải lấy accountId + accountType từ Authentication như trên để ghi log, không được để trống hay hardcode. 
+  - Không nhận accountId/role từ body hay query param của client — luôn lấy từ token đã xác thực (Authentication), tránh trường hợp client tự khai "tôi là admin" giả mạo.
+  - Route /api/customer/** không có Authentication vì được permitAll() — Controller của Customer không được ép kiểu Authentication, sẽ lỗi NullPointerException hoặc ClassCastException nếu cố lấy principal ở đó.
 
 
-## . Quy ước code cần tuân thủ chung
+Checklist khi viết Controller mới (Admin/Lễ tân/KDS):
+- Route đã đúng nhóm phân quyền trong SecurityConfig chưa (/api/admin/**, /api/pos/**, /api/kds/**)?
+- Có cần @PreAuthorize chi tiết hơn route không?
+- Có hành động nào cần ghi ActivityLog không — nếu có, lấy accountId từ Authentication?
+- Trả về DTO, không trả entity trực tiếp (đã quy ước trước đó, vẫn áp dụng).
+  
+
+##  Quy ước code cần tuân thủ chung
 
 - Tiền và số lượng nguyên liệu: luôn dùng `BigDecimal`, không dùng `double`/`float`
 - Ngày giờ: dùng `LocalDateTime` (java.time), không dùng `java.util.Date`

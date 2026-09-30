@@ -1,9 +1,13 @@
 ghi lại tiến trình làm
 
-thiết kế database: Lượng 
-vẽ sơ đồ các luồng dữ liệu : Lượng
-Làm đề cương : Khánh 
-thiết lập cây thư mục tổng quát : Khánh
+Tổ Quốc ghi công:
+- thiết kế database: Lượng 
+- vẽ sơ đồ các luồng dữ liệu : Lượng
+- Làm đề cương : Khánh 
+- thiết lập cây thư mục tổng quát cho backend: Khánh
+- tạo đầy đủ file markdown để định hình quy chuẩn cũng như thống nhất xuyên suốt project : Khánh
+- cấu hình websocket, thiết lập bắt ngoại lệ tổng quát, jwt authentication : khánh
+- giao diện của customer : sơn , Như ( đang làm )
 
 Thứ tự nên làm :
 
