@@ -1,0 +1,232 @@
+// DBML - Smart POS & KDS (262701-DACN-08)
+// Xuất từ DB_ERD.drawio, dùng được trực tiếp trên https://dbdiagram.io
+
+enum selection_type {
+  single_choice
+  multi_choice
+}
+
+enum adjust_type {
+  add
+  remove
+}
+
+enum discount_type {
+  fixed
+  percent
+}
+
+enum table_status {
+  trong
+  dang_phuc_vu
+}
+
+enum invoice_status {
+  open
+  paid
+}
+
+enum payment_method {
+  cash
+  bank_transfer
+}
+
+enum order_item_status {
+  pending
+  confirmed
+  rejected
+  cooking
+  done
+  served
+}
+
+enum stock_transaction_type {
+  import
+  export
+  adjust
+}
+
+enum staff_role {
+  admin
+  le_tan
+}
+
+enum account_type {
+  staff
+  kitchen
+}
+
+enum call_staff_status {
+  pending
+  resolved
+}
+
+Table Category {
+  ID int [pk, increment]
+  Name varchar
+  Station_id int [not null, ref: > Kitchen_station.ID, note: '1 danh mục chỉ thuộc đúng 1 khu bếp']
+}
+
+Table Food {
+  ID int [pk, increment]
+  Category_id int [not null, ref: > Category.ID]
+  Name varchar
+  Price decimal
+  Image varchar
+  Description text
+  Estimated_cooking_time int [note: 'dùng để tính SLA']
+}
+
+Table Option_group {
+  ID int [pk, increment]
+  Name varchar
+  Selection_type selection_type
+}
+
+Table Option {
+  ID int [pk, increment]
+  Food_id int [not null, ref: > Food.ID]
+  Name varchar
+  Group_id int [not null, ref: > Option_group.ID]
+  Ingredient_id int [ref: >? Ingredient.ID, note: 'có giá trị nếu option ảnh hưởng nguyên liệu']
+  Adjust_amount decimal
+  Adjust_type adjust_type
+  Price_delta decimal [note: 'có giá trị nếu option ảnh hưởng giá']
+  Scale_factor decimal [note: 'hệ số nhân BOM nếu option kiểu size']
+
+  Note: 'Không có cột type — mọi trường độc lập, trường nào có giá trị thì áp dụng khi tính toán'
+}
+
+Table Combo {
+  ID int [pk, increment]
+  Name varchar
+  Discount_type discount_type
+  Discount_value decimal
+}
+
+Table Combo_item {
+  Combo_id int [not null, ref: > Combo.ID]
+  Food_id int [not null, ref: > Food.ID]
+  Quantity int
+
+  indexes {
+    (Combo_id, Food_id) [pk]
+  }
+}
+
+Table Ingredient {
+  ID int [pk, increment]
+  Name varchar
+  Unit varchar
+  Stock_quantity decimal
+  Min_threshold decimal
+}
+
+Table Recipe {
+  ID int [pk, increment]
+  Food_id int [not null, ref: > Food.ID]
+  Ingredient_id int [not null, ref: > Ingredient.ID]
+  Quantity_required decimal
+}
+
+Table Stock_transaction {
+  ID int [pk, increment]
+  Ingredient_id int [not null, ref: > Ingredient.ID]
+  Type stock_transaction_type
+  Quantity decimal
+  Note varchar
+  Created_at datetime
+}
+
+Table Table {
+  ID int [pk, increment]
+  Floor varchar
+  Table_number varchar
+  Status table_status
+}
+
+Table Invoice {
+  ID int [pk, increment]
+  Table_id int [not null, ref: > Table.ID]
+  Status invoice_status
+  Payment_method payment_method
+  Amount_received decimal
+  Change_amount decimal
+  Bank_transaction_ref varchar [note: 'đối chiếu webhook ngân hàng']
+  Opened_at datetime
+  Paid_at datetime
+
+  Note: 'Không lưu tổng tiền — tính động từ Unit_price × Quantity của các OrderItem thuộc Invoice'
+}
+
+Table Order {
+  ID int [pk, increment]
+  Invoice_id int [not null, ref: > Invoice.ID]
+  Created_at datetime
+}
+
+Table Order_item {
+  ID int [pk, increment]
+  Order_id int [not null, ref: > Order.ID]
+  Food_id int [not null, ref: > Food.ID]
+  Quantity int
+  Status order_item_status
+  Reject_reason varchar
+  Started_cooking_at datetime [note: 'thời điểm trừ kho theo BOM']
+  Done_at datetime
+  Served_at datetime
+  Unit_price decimal [note: 'giá chốt tại thời điểm order']
+  Combo_order_id int [ref: >? Order_combo.ID, note: 'NULL nếu gọi lẻ']
+}
+
+Table Order_item_option {
+  UniqueID int [pk, increment]
+  Order_item_id int [not null, ref: > Order_item.ID]
+  Option_id int [not null, ref: > Option.ID]
+}
+
+Table Order_combo {
+  ID int [pk, increment]
+  Order_id int [not null, ref: > Order.ID]
+  Combo_id int [not null, ref: > Combo.ID]
+  Quantity int
+  Combo_price decimal [note: 'giá combo chốt tại thời điểm order']
+}
+
+Table Staff_account {
+  ID int [pk, increment]
+  Username varchar
+  Password_hash varchar
+  Role staff_role
+}
+
+Table Kitchen_account {
+  ID int [pk, increment]
+  Username varchar
+  Password_hash varchar
+  Station_id int [not null, ref: > Kitchen_station.ID]
+}
+
+Table Kitchen_station {
+  ID int [pk, increment]
+  Name varchar
+}
+
+Table Activity_log {
+  ID int [pk, increment]
+  Account_id int [note: 'không phải FK thật — tra theo Account_type']
+  Account_type account_type [note: 'biết tra Staff_account hay Kitchen_account']
+  Action varchar
+  Target_type varchar [note: 'order / invoice / food / ingredient ...']
+  Target_id int [note: 'không phải FK thật — polymorphic theo Target_type']
+  Detail varchar
+  Created_at datetime
+}
+
+Table Call_staff_request {
+  ID int [pk, increment]
+  Table_id int [not null, ref: > Table.ID]
+  Created_at datetime
+  Resolved_at datetime [note: 'NULL = chưa xử lý']
+  Status call_staff_status
+}
