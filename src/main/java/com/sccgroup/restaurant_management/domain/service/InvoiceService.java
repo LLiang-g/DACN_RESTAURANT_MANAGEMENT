@@ -28,4 +28,6 @@ public class InvoiceService {
                 .orElseGet(() -> invoiceRepository.save(
                         new Invoice(table, InvoiceStatus.OPEN, LocalDateTime.now())));
     }
+
+
 }

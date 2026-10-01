@@ -8,6 +8,8 @@ Tổ Quốc ghi công:
 - tạo đầy đủ file markdown để định hình quy chuẩn cũng như thống nhất xuyên suốt project : Khánh
 - cấu hình websocket, thiết lập bắt ngoại lệ tổng quát, jwt authentication : khánh
 - giao diện của customer : sơn , Như ( đang làm )
+  - bản giao diện khách hàng thô sơ, customer gọi món, lưu order vào database : sơn 
+  - 
 
 Thứ tự nên làm :
 

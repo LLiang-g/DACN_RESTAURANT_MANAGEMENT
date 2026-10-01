@@ -28,36 +28,35 @@
 com.sccgroup.restaurant_management/
 ├── domain/
 │   ├── entity/          ← TOÀN BỘ 20 entity + enum của hệ thống nằm ở đây
-│   └── repository/
+│   ├──repository/
 │        ├── account    ← KitchenAccountRepository, StaffAccountRepository
 │        ├── menu
+│   └──service    ← InvoiceService
 ├── admin/
 │   ├── controller/
 │   ├── service/
-│   └── (dto — chưa tạo)
+│   └── dto 
 ├── customer/
-│   ├── controller/       (chưa tạo)
-│   ├── service/          (chưa tạo)
-│   └── (dto — chưa tạo)
+│   ├── controller/       
+│   ├── service/          
+│   └── dto 
 ├── kds/
-│   ├── controller/       (chưa tạo)
-│   ├── service/          (chưa tạo)
-│   └── (dto — chưa tạo)
+│   ├── controller/       
+│   ├── service/          
+│   └── dto 
 ├── pos/
-│   ├── controller/       (chưa tạo)
-│   ├── service/          (chưa tạo)
-│   └── (dto — chưa tạo)
+│   ├── controller/      
+│   ├── service/          
+│   └── dto 
 ├── common/
 │   ├──exception/        ← ErrorResponse, ResourceNotFoundException, BusinessException, GlobalExceptionHandler
-│   ├──security/ ← AppUserPrincipal, JwtUtil,JwtAuthFilter,SecurityConfig,CustomUserDetailsService,AuthController
+│   ├──security/      ← AppUserPrincipal, JwtUtil,JwtAuthFilter,SecurityConfig,CustomUserDetailsService,AuthController
 │     
 ├── config/
 │   ├── CorsConfig
 │   └── WebSocketConfig    ← STOMP endpoint /ws, broker /topic, prefix /app
 └── RestaurantManagementApplication
 ```
-lưu ý : khi viết Controller phải dựa vào SecurityConfig
-
 
 **Quyết định kiến trúc quan trọng**: TẤT CẢ entity đặt chung trong `domain/entity` (không tách theo module), để tránh các module phải import chéo entity của nhau. Các module (`admin`, `customer`, `kds`, `pos`) chỉ chứa `controller`, `service`, `dto`, `repository` của riêng logic nghiệp vụ đó — còn `repository` của entity thì đặt cạnh entity trong `domain`.
 
@@ -139,7 +138,9 @@ Checklist khi viết Controller mới (Admin/Lễ tân/KDS):
 - Có cần @PreAuthorize chi tiết hơn route không?
 - Có hành động nào cần ghi ActivityLog không — nếu có, lấy accountId từ Authentication?
 - Trả về DTO, không trả entity trực tiếp (đã quy ước trước đó, vẫn áp dụng).
-  
+
+### bổ sung dần cho project :
+- InvoiceService.getOrCreateOpenInvoice() đã xong và test qua khi viết Controller tạo Order, phải gọi qua hàm này, không tự viết logic tạo Invoice riêng.
 
 ##  Quy ước code cần tuân thủ chung
 

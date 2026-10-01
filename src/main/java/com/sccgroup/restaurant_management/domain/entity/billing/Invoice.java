@@ -56,4 +56,6 @@ public class Invoice {
     public void setChangeAmount(BigDecimal changeAmount) { this.changeAmount = changeAmount; }
     public void setBankTransactionRef(String ref) { this.bankTransactionRef = ref; }
     public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }
+    public LocalDateTime getOpenedAt() { return openedAt; }
+
 }
