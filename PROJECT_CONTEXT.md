@@ -143,7 +143,7 @@ Checklist khi viết Controller mới (Admin/Lễ tân/KDS):
 - InvoiceService.getOrCreateOpenInvoice() đã xong và test qua khi viết Controller tạo Order, phải gọi qua hàm này, không tự viết logic tạo Invoice riêng.
 
 ##  Quy ước code cần tuân thủ chung
-
+gi
 - Tiền và số lượng nguyên liệu: luôn dùng `BigDecimal`, không dùng `double`/`float`
 - Ngày giờ: dùng `LocalDateTime` (java.time), không dùng `java.util.Date`
 - Enum: luôn `@Enumerated(EnumType.STRING)`, không dùng mặc định (ORDINAL)
