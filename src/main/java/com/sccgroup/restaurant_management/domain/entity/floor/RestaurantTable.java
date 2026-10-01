@@ -30,5 +30,7 @@ public class RestaurantTable {
     public String getFloor() { return floor; }
     public String getTableNumber() { return tableNumber; }
     public TableStatus getStatus() { return status; }
+    public void setFloor(String floor) { this.floor = floor; }
+    public void setTableNumber(String tableNumber) { this.tableNumber = tableNumber; }
     public void setStatus(TableStatus status) { this.status = status; }
 }

@@ -32,4 +32,7 @@ public class Combo {
     public String getName() { return name; }
     public DiscountType getDiscountType() { return discountType; }
     public BigDecimal getDiscountValue() { return discountValue; }
+    public void setName(String name) { this.name = name; }
+    public void setDiscountType(DiscountType discountType) { this.discountType = discountType; }
+    public void setDiscountValue(BigDecimal discountValue) { this.discountValue = discountValue; }
 }
