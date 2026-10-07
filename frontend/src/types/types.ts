@@ -14,6 +14,7 @@ export interface MenuFood {
   description: string | null
   estimatedCookingTime: number | null
   available: boolean
+  remainingPortions: number | null // null = không giới hạn
   hasOptions: boolean
 }
 
@@ -36,6 +37,7 @@ export interface MenuCombo {
   price: number
   originalPrice: number
   available: boolean
+  remainingPortions: number | null
   items: MenuComboItem[]
 }
 
@@ -62,6 +64,7 @@ export interface FoodDetail {
   name: string
   price: number
   available: boolean
+  remainingPortions: number | null
   optionGroups: OptionGroup[]
 }
 
@@ -79,4 +82,51 @@ export interface PlaceOrderPayload {
     quantity: number
     items: { foodId: number; optionIds: number[] }[]
   }[]
+}
+
+export type ItemStatus = "PENDING" | "CONFIRMED" | "REJECTED" | "COOKING" | "DONE" | "SERVED" | "RETURNED"
+
+export interface InvoiceItem {
+  id: number
+  foodId: number
+  foodName: string
+  quantity: number
+  unitPrice: number
+  status: ItemStatus
+  note: string | null
+  cancelledByCustomer: boolean
+  startedCookingAt: string | null
+  estimatedCookingMinutes: number | null
+  comboOrderId: number | null
+  optionNames: string[]
+  cancellable: boolean
+}
+
+export interface InvoiceCombo {
+  id: number
+  comboId: number
+  comboName: string
+  quantity: number
+  comboPrice: number
+  active: boolean
+}
+
+export interface InvoiceOrder {
+  orderId: number
+  createdAt: string
+  items: InvoiceItem[]
+  combos: InvoiceCombo[]
+}
+
+export interface InvoiceView {
+  invoiceId: number | null
+  openedAt: string | null
+  totalAmount: number
+  callStaffPending: boolean
+  orders: InvoiceOrder[]
+}
+
+export interface CallStaffResult {
+  id: number
+  alreadyPending: boolean
 }

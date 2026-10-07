@@ -20,9 +20,9 @@ public class ComboPriceCalculator {
     /** Tổng giá gốc của các món con (giá món × số lượng trong combo). */
     public BigDecimal originalPrice(Collection<ComboItem> items) {
         BigDecimal sum = BigDecimal.ZERO;
-        for (ComboItem ci : items) {
-            BigDecimal price = ci.getFood().getPrice() == null ? BigDecimal.ZERO : ci.getFood().getPrice();
-            sum = sum.add(price.multiply(BigDecimal.valueOf(ci.getQuantity() == null ? 1 : ci.getQuantity())));
+        for (ComboItem comboItem : items) {
+            BigDecimal price = comboItem.getFood().getPrice() == null ? BigDecimal.ZERO : comboItem.getFood().getPrice();
+            sum = sum.add(price.multiply(BigDecimal.valueOf(comboItem.getQuantity() == null ? 1 : comboItem.getQuantity())));
         }
         return sum;
     }

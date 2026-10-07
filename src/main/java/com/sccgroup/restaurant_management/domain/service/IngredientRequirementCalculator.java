@@ -7,6 +7,7 @@ import com.sccgroup.restaurant_management.domain.entity.menu.Option;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,36 +36,36 @@ public class IngredientRequirementCalculator {
      */
     public List<IngredientNeed> calculate(Collection<Recipe> recipes, int quantity, Collection<Option> options) {
         BigDecimal scale = BigDecimal.ONE;
-        for (Option o : options) {
-            if (o.getScaleFactor() != null) {
-                scale = scale.multiply(o.getScaleFactor());
+        for (Option option : options) {
+            if (option.getScaleFactor() != null) {
+                scale = scale.multiply(option.getScaleFactor());
             }
         }
 
         Map<Long, Ingredient> ingredients = new LinkedHashMap<>();
         Map<Long, BigDecimal> perUnit = new LinkedHashMap<>();
 
-        for (Recipe r : recipes) {
-            if (r.getQuantityRequired() == null) continue;
-            Ingredient ing = r.getIngredient();
-            ingredients.putIfAbsent(ing.getId(), ing);
-            perUnit.merge(ing.getId(), r.getQuantityRequired().multiply(scale), BigDecimal::add);
+        for (Recipe recipe : recipes) {
+            if (recipe.getQuantityRequired() == null) continue;
+            Ingredient ingredient = recipe.getIngredient();
+            ingredients.putIfAbsent(ingredient.getId(), ingredient);
+            perUnit.merge(ingredient.getId(), recipe.getQuantityRequired().multiply(scale), BigDecimal::add);
         }
 
-        for (Option o : options) {
-            if (o.getIngredient() == null || o.getAdjustAmount() == null || o.getAdjustType() == null) continue;
-            Ingredient ing = o.getIngredient();
-            ingredients.putIfAbsent(ing.getId(), ing);
-            BigDecimal delta = o.getAdjustType() == AdjustType.ADD
-                    ? o.getAdjustAmount()
-                    : o.getAdjustAmount().negate();
-            perUnit.merge(ing.getId(), delta, BigDecimal::add);
+        for (Option option : options) {
+            if (option.getIngredient() == null || option.getAdjustAmount() == null || option.getAdjustType() == null) continue;
+            Ingredient ingredient = option.getIngredient();
+            ingredients.putIfAbsent(ingredient.getId(), ingredient);
+            BigDecimal delta = option.getAdjustType() == AdjustType.ADD
+                    ? option.getAdjustAmount()
+                    : option.getAdjustAmount().negate();
+            perUnit.merge(ingredient.getId(), delta, BigDecimal::add);
         }
 
-        BigDecimal qty = BigDecimal.valueOf(quantity);
+        BigDecimal quantityAsDecimal = BigDecimal.valueOf(quantity);
         List<IngredientNeed> result = new java.util.ArrayList<>();
         perUnit.forEach((id, amount) -> {
-            BigDecimal total = amount.max(BigDecimal.ZERO).multiply(qty); // REMOVE không làm âm
+            BigDecimal total = amount.max(BigDecimal.ZERO).multiply(quantityAsDecimal); // REMOVE không làm âm
             if (total.signum() > 0) {
                 result.add(new IngredientNeed(ingredients.get(id), total));
             }
@@ -75,8 +76,8 @@ public class IngredientRequirementCalculator {
     /** Gom danh sách công thức thành foodId -> các dòng công thức của món đó. */
     public Map<Long, List<Recipe>> groupByFood(Collection<Recipe> recipes) {
         Map<Long, List<Recipe>> result = new java.util.HashMap<>();
-        for (Recipe r : recipes) {
-            result.computeIfAbsent(r.getFood().getId(), k -> new java.util.ArrayList<>()).add(r);
+        for (Recipe recipe : recipes) {
+            result.computeIfAbsent(recipe.getFood().getId(), key -> new java.util.ArrayList<>()).add(recipe);
         }
         return result;
     }
@@ -86,11 +87,11 @@ public class IngredientRequirementCalculator {
      * @param alreadyUsed ingredientId -> lượng các dòng trước đã cần (dùng để cộng dồn trong cùng một đơn)
      */
     public boolean isSufficient(List<IngredientNeed> needs, Map<Long, BigDecimal> alreadyUsed) {
-        for (IngredientNeed n : needs) {
-            BigDecimal stock = n.ingredient().getStockQuantity() == null
-                    ? BigDecimal.ZERO : n.ingredient().getStockQuantity();
-            BigDecimal used = alreadyUsed.getOrDefault(n.ingredient().getId(), BigDecimal.ZERO);
-            if (stock.subtract(used).compareTo(n.amount()) < 0) {
+        for (IngredientNeed need : needs) {
+            BigDecimal stock = need.ingredient().getStockQuantity() == null
+                    ? BigDecimal.ZERO : need.ingredient().getStockQuantity();
+            BigDecimal used = alreadyUsed.getOrDefault(need.ingredient().getId(), BigDecimal.ZERO);
+            if (stock.subtract(used).compareTo(need.amount()) < 0) {
                 return false;
             }
         }
@@ -99,8 +100,34 @@ public class IngredientRequirementCalculator {
 
     /** Ghi nhận các nhu cầu vào map "đã dùng" sau khi một dòng đã được chấp nhận. */
     public void accumulate(List<IngredientNeed> needs, Map<Long, BigDecimal> alreadyUsed) {
-        for (IngredientNeed n : needs) {
-            alreadyUsed.merge(n.ingredient().getId(), n.amount(), BigDecimal::add);
+        for (IngredientNeed need : needs) {
+            alreadyUsed.merge(need.ingredient().getId(), need.amount(), BigDecimal::add);
         }
+    }
+
+    /**
+     * Số suất tối đa còn làm được = min theo từng nguyên liệu của floor((tồn kho − đã giữ chỗ) / lượng cần mỗi suất).
+     * Các nhu cầu trùng nguyên liệu (vd. nhiều món con của combo) được cộng gộp trước khi chia.
+     * @param perPortionNeeds nhu cầu nguyên liệu của MỘT suất (một món hoặc một combo)
+     * @param reserved        ingredientId -> lượng đã giữ chỗ bởi các đơn chưa tới bếp
+     * @return null nếu món không có công thức (không giới hạn được)
+     */
+    public Integer maxPortions(List<IngredientNeed> perPortionNeeds, Map<Long, BigDecimal> reserved) {
+        if (perPortionNeeds.isEmpty()) return null;
+        Map<Long, Ingredient> ingredients = new LinkedHashMap<>();
+        Map<Long, BigDecimal> total = new LinkedHashMap<>();
+        for (IngredientNeed need : perPortionNeeds) {
+            ingredients.putIfAbsent(need.ingredient().getId(), need.ingredient());
+            total.merge(need.ingredient().getId(), need.amount(), BigDecimal::add);
+        }
+        int best = Integer.MAX_VALUE;
+        for (Map.Entry<Long, BigDecimal> entry : total.entrySet()) {
+            BigDecimal stock = ingredients.get(entry.getKey()).getStockQuantity();
+            BigDecimal available = (stock == null ? BigDecimal.ZERO : stock)
+                    .subtract(reserved.getOrDefault(entry.getKey(), BigDecimal.ZERO)).max(BigDecimal.ZERO);
+            BigDecimal portions = available.divide(entry.getValue(), 0, RoundingMode.FLOOR);
+            best = Math.min(best, portions.min(BigDecimal.valueOf(9999)).intValue());
+        }
+        return best;
     }
 }

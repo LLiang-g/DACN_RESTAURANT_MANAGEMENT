@@ -108,16 +108,19 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 
 ### 6.1. Customer — xem menu & gửi đơn (PENDING) — người thực hiện: **son**
 
-**Trạng thái**: backend REST xong, đã biên dịch và unit test phần logic thuần. Chưa test tích hợp với MySQL thật; chưa có giao diện React.
+**Trạng thái**: backend REST + giao diện React xong, đã đối chiếu với đặc tả PDF và `smart-pos-kds.dbml` mới. Đã biên dịch và unit test phần logic thuần; chưa test tích hợp với MySQL thật, chưa chạy thử giao diện trên trình duyệt.
 
 **API** (không cần đăng nhập, prefix `/api/customer`):
 
 | Method | Đường dẫn | Mô tả |
 |---|---|---|
 | GET | `/tables/{tableId}` | Xác nhận bàn từ QR, trả tầng + số bàn (404 nếu không có) |
-| GET | `/menu` | Danh mục + món (kèm `available`, `hasOptions`) và danh sách combo (kèm giá, `available`) |
+| GET | `/menu` | Danh mục + món (kèm `available`, `remainingPortions` = số suất còn làm được, `hasOptions`) và combo (kèm giá, `available`, `remainingPortions`) |
 | GET | `/foods/{foodId}` | Chi tiết món + nhóm tùy chọn (`priceDelta` đã quy về 0 nếu không đổi giá) |
 | POST | `/orders` | Gửi đơn → tạo **một Order mới**, mọi OrderItem ở `PENDING`, trả 201 |
+| GET | `/tables/{tableId}/invoice` | Xem lại hóa đơn đang mở của bàn: các Order, trạng thái từng món, `note` (lý do từ chối/trả món), thời gian nấu dự kiến, tổng tạm tính, `callStaffPending` |
+| POST | `/tables/{tableId}/order-items/{id}/cancel` | Khách hủy món khi bếp chưa bấm Nấu (`PENDING`/`CONFIRMED`): món chuyển `REJECTED` với `note` = "Khách tự hủy" → trả hóa đơn mới nhất |
+| POST | `/tables/{tableId}/call-staff` | Gọi nhân viên (tạo `CallStaffRequest` `PENDING`; bàn đã có yêu cầu chưa xử lý thì không tạo trùng) |
 
 **Body `POST /orders`**:
 ```json
@@ -130,34 +133,54 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 ```
 
 **File đã tạo**:
-- `customer/controller`: `CustomerMenuController`, `CustomerOrderController`
-- `customer/service`: `CustomerMenuService`, `CustomerOrderService`
-- `customer/dto`: `TableInfoResponse`, `MenuResponse`, `FoodDetailResponse`, `PlaceOrderRequest`, `OrderResponse`
-- `domain/service`: `IngredientRequirementCalculator` (tính nguyên liệu cần theo BOM + option, kiểm tra kho đủ), `ComboPriceCalculator`
-- `domain/repository`: `floor/RestaurantTableRepository`, `billing/InvoiceRepository`, `menu/{Food,Option,Combo,ComboItem}Repository`, `inventory/RecipeRepository`, `order/{Order,OrderCombo,OrderItem,OrderItemOption}Repository`
+- `customer/controller`: `CustomerMenuController`, `CustomerOrderController`, `CustomerTableController`
+- `customer/service`: `CustomerMenuService`, `CustomerOrderService`, `CustomerInvoiceService`, `CustomerCallStaffService`
+- `customer/dto`: `TableInfoResponse`, `MenuResponse`, `FoodDetailResponse`, `PlaceOrderRequest`, `OrderResponse`, `InvoiceViewResponse`, `CallStaffResponse`
+- `domain/service`: `IngredientRequirementCalculator` (nguyên liệu cần theo BOM + option, kiểm tra kho đủ, số suất tối đa), `ComboPriceCalculator`, `StockReservationService` (nguyên liệu đang giữ chỗ), `InvoiceAutoCancelService` (tự hủy hóa đơn rỗng sau grace period)
+- `config/SchedulingConfig` (`@EnableScheduling`)
+- `domain/repository`: `floor/RestaurantTableRepository`, `billing/InvoiceRepository`, `menu/{Food,Option,Combo,ComboItem}Repository`, `inventory/{Recipe,Ingredient}Repository`, `order/{Order,OrderCombo,OrderItem,OrderItemOption}Repository`, `floor/CallStaffRequestRepository`
 - test: `IngredientRequirementCalculatorTest`, `ComboPriceCalculatorTest` (thuần JUnit, không cần DB)
 - `src/main/resources/sample-data/customer_sample_data.sql` — dữ liệu mẫu để test khi Admin chưa xong (chạy thủ công)
 
-**Giao diện khách (React + TypeScript, `frontend/src/customer/`)**: `types.ts`, `api.ts`, `cart.ts`, `OptionPicker.tsx`, `Modals.tsx`, `CustomerApp.tsx`, `customer.css`; `App.tsx` render `CustomerApp`. Không thêm thư viện mới. Vào bằng `http://localhost:5173/?table=<id>` (URL này chính là nội dung mã QR của bàn). `vite.config.ts` có proxy `/api` → `localhost:8080` và `host: true` để điện thoại cùng WiFi truy cập được.
+**Giao diện khách (React + TypeScript, `frontend/src/`)** — cấu trúc thư mục:
+```
+src/
+├── api/api.ts                 ← gọi backend (/api/customer/...)
+├── components/
+│   ├── Modals.tsx             ← Sheet, QuantityStepper, FoodModal, ComboModal
+│   ├── OptionPicker.tsx       ← chọn size / thêm bớt
+│   └── InvoiceSheet.tsx       ← xem hóa đơn, hủy món (tự tải lại mỗi 5s)
+├── store/cart.ts              ← giỏ hàng + hàm tính tiền, dựng payload gửi đơn
+├── types/types.ts             ← kiểu dữ liệu khớp DTO backend
+├── App.tsx                    ← màn hình khách (menu, giỏ, gọi nhân viên)
+├── App.css, index.css, main.tsx
+```
+Không thêm thư viện mới. Vào bằng `http://localhost:5173/?table=<id>` (URL này chính là nội dung mã QR của bàn). `vite.config.ts` có proxy `/api` → `localhost:8080` và `host: true` để điện thoại cùng WiFi truy cập được.
 
 **Quy tắc nghiệp vụ đã cài**:
 - Mỗi lần gửi đơn = một `Order` mới, không gộp vào Order cũ.
-- Gộp hóa đơn: bàn chưa có `Invoice` `OPEN` → tự tạo + chuyển bàn sang `DANG_PHUC_VU`; có rồi → gắn Order vào hóa đơn đó. Khóa dòng bàn (`PESSIMISTIC_WRITE`) để 2 khách cùng bàn không tạo 2 hóa đơn.
+- Gộp hóa đơn: bàn chưa có `Invoice` `OPEN` → tự tạo + chuyển bàn sang `SERVING`; có rồi → gắn Order vào hóa đơn đó. Khóa dòng bàn (`PESSIMISTIC_WRITE`) để 2 khách cùng bàn không tạo 2 hóa đơn.
 - Giá chốt tại server, không nhận giá từ client: món lẻ `unitPrice = price + Σ priceDelta` của option đã chọn.
-- Kiểm tra: số lượng 1–99; option phải thuộc đúng món; nhóm `SINGLE_CHOICE` chỉ chọn một; món con gửi lên phải thuộc combo.
-- Còn/hết hàng suy ra từ kho (không có công tắc thủ công); combo hết nếu một món con hết. Khi gửi đơn, cộng dồn nguyên liệu cả đơn (gồm `scaleFactor`, option ADD/REMOVE); thiếu → `BusinessException` "Món ... hiện tạm hết". **Không trừ kho** ở bước này (chỉ trừ khi bếp bấm "Nấu").
+- Kiểm tra: số lượng 1–99; option phải thuộc đúng món; nhóm `SINGLE_CHOICE` **bắt buộc chọn đúng một** (đặc tả: "bắt buộc chọn đúng 1"), `MULTI_CHOICE` chọn tự do; món con gửi lên phải thuộc combo.
+- Còn/hết hàng và **số suất còn lại** suy ra tự động: `min` theo nguyên liệu của (tồn kho − phần đang giữ chỗ) / định lượng; combo tính trên nhu cầu gộp của các món con. Khách chỉ thấy số suất, không thấy tồn kho.
+- **Giữ chỗ nguyên liệu**: khác bộ đếm RAM trong đặc tả, "phần giữ chỗ" = nguyên liệu (BOM + option) của mọi món đang `PENDING`/`CONFIRMED`, tính thẳng từ DB (`StockReservationService`). Nhờ đó món bị hủy/từ chối, hoặc vào `COOKING` (kho thật đã bị trừ) tự hết giữ chỗ, **Lễ tân/KDS không cần gọi "cộng lại bộ đếm"**. Khi gửi đơn, khóa toàn bộ nguyên liệu (`IngredientRepository.findAllForUpdate`) để hai bàn không giành món cuối. Thiếu → `BusinessException` "Món ... hiện tạm hết". **Không trừ kho** ở bước này (chỉ trừ khi bếp bấm "Nấu").
+- **Hóa đơn rỗng**: khi mọi món của hóa đơn đều `REJECTED` (kể cả khách tự hủy), hóa đơn KHÔNG đóng ngay, bàn vẫn `SERVING`. `InvoiceAutoCancelService` quét mỗi 30s; sau `app.invoice.empty-grace-minutes` (mặc định 10) mà vẫn không có món hợp lệ → `Invoice` `CANCELLED` + `cancelledAt`, bàn `AVAILABLE`. Mốc bắt đầu đếm giờ lưu trong RAM (schema không có cột) nên khởi động lại ứng dụng thì đếm lại. Cấu hình tùy chọn: `app.invoice.empty-grace-minutes`, `app.invoice.scan-interval-ms` trong `application.properties`.
 
 **Quy ước dữ liệu mà Lễ tân/Thanh toán cần biết**:
 - `Combo` không có cột giá: `FIXED` → `discountValue` là **giá bán của combo**; `PERCENT` → giá = tổng giá món con × (1 − %/100), làm tròn đồng. Logic ở `ComboPriceCalculator` (nếu Admin hiểu `FIXED` là "số tiền giảm" thì chỉ cần sửa một chỗ này).
-- Món trong combo: `OrderItem.unitPrice` = **chỉ phụ thu option** (vd. nâng size), giá gốc đã nằm trong `OrderCombo.comboPrice`. Nên **tổng hóa đơn = Σ(unitPrice × quantity của OrderItem) + Σ(comboPrice × quantity của OrderCombo)** (bỏ các món `REJECTED`/đã hủy).
+- Món trong combo: `OrderItem.unitPrice` = **chỉ phụ thu option** (vd. nâng size), giá gốc đã nằm trong `OrderCombo.comboPrice`. Nên **tổng hóa đơn = Σ(unitPrice × quantity của OrderItem) + Σ(comboPrice × quantity của OrderCombo)** (bỏ các món `REJECTED` — gồm cả khách tự hủy — và `RETURNED`; việc `RETURNED` không tính tiền là giả định của son, Lễ tân điều chỉnh nếu khác).
 - Trạng thái món nằm ở `OrderItem` (Order không có cột status); "Order PENDING" = mọi OrderItem của nó đang `PENDING`.
 
-**Chưa làm (thuộc Customer, làm sau)**: theo dõi trạng thái đơn realtime, thời gian chế biến còn lại, hủy đơn, gọi nhân viên, đẩy WebSocket báo Lễ tân có đơn mới.
+**Đã cập nhật theo DBML mới (entity dùng chung)**: `TableStatus` → `AVAILABLE`/`SERVING`; `InvoiceStatus` thêm `CANCELLED` + `Invoice.cancelledAt`, `getOpenedAt()`; `OrderItemStatus` thêm `RETURNED`; `OrderItem.rejectReason` đổi thành `note` (dùng chung lý do từ chối và trả món) + `returnedAt`. **Chưa đổi** (không thuộc phần Customer): `StaffRole.LE_TAN` → `RECEPTIONIST`. Do đổi tên cột/enum, DB dev cũ cần tạo lại (xem hướng dẫn trong tin nhắn bàn giao: `DROP DATABASE` rồi chạy lại ứng dụng + `customer_sample_data.sql`).
+
+**Hủy món**: DBML không có trạng thái "cancelled" cho món nên khách hủy = `REJECTED` + `note` = "Khách tự hủy" (hằng `CustomerInvoiceService.CUSTOMER_CANCEL_NOTE`); Lễ tân phân biệt được với từ chối bằng note này. Món thuộc combo: hủy một món con = hủy cả combo (giá combo không chia lẻ được). **KDS cần lưu ý**: khi bếp bấm "Nấu" phải đọc lại status trong transaction (nên khóa dòng như `OrderItemRepository.findAllByIdForUpdate`) và từ chối nếu món đã `REJECTED`.
+
+**Chưa làm (thuộc Customer, làm sau)**: theo dõi trạng thái bằng WebSocket (hiện giao diện tải lại mỗi 5s, đặc tả yêu cầu cập nhật tức thời), đẩy WebSocket báo Lễ tân có đơn mới / có người gọi / có món bị hủy, hủy cả Order bằng một thao tác (hiện hủy theo từng món).
 
 **Giả định/hạn chế đã biết**:
-- Schema chưa có hệ số quy đổi đơn vị kho ↔ công thức → code giả định cùng đơn vị.
-- Schema chưa có cờ "bắt buộc chọn" cho nhóm option → không ép khách phải chọn size.
-- Kiểm tra tồn kho lúc gửi đơn chỉ so với tồn hiện tại, chưa trừ phần các đơn PENDING khác đang chờ (vì kho chỉ trừ lúc "Nấu").
+- Khách không đăng nhập nên chỉ kiểm tra món thuộc đúng bàn (`tableId`), chưa chống người biết mã bàn khác nghịch phá.
+- Đặc tả nói hệ thống tự quy đổi đơn vị nhập kho ↔ đơn vị công thức, nhưng schema (`Ingredient`) chỉ có một cột `unit` → code giả định cùng đơn vị. Cần thêm hệ số quy đổi vào schema nếu muốn đúng đặc tả.
+- Giữ chỗ nguyên liệu tính từ DB thay vì bộ đếm RAM như đặc tả (xem trên); nếu muốn đúng nguyên văn thì thêm cache RAM, nhưng phải có chỗ cộng lại khi Lễ tân từ chối.
 
 ## 7. Quy ước code cần tuân thủ chung
 
@@ -166,4 +189,5 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 - Enum: luôn `@Enumerated(EnumType.STRING)`, không dùng mặc định (ORDINAL)
 - Quan hệ `@ManyToOne`/`@OneToOne`: luôn set `fetch = FetchType.LAZY` (mặc định JPA là EAGER, dễ gây N+1 query)
 - Không trả entity JPA trực tiếp ra Controller — luôn qua DTO (tránh lộ field nhạy cảm như `passwordHash`, tránh lỗi `LazyInitializationException`)
+- Đặt tên biến/hàm/lớp rõ nghĩa, viết đầy đủ, hạn chế viết tắt (ví dụ: `orderItem` thay vì `oi`, `quantity` thay vì `qty`, `comboItem` thay vì `ci`). Chỉ giữ các từ viết tắt quen thuộc như `id`, `dto`, `api`.
 - Lỗi nghiệp vụ: `throw` `ResourceNotFoundException`/`BusinessException`, không tự viết `try-catch` trả JSON thủ công
