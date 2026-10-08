@@ -26,8 +26,8 @@ public class OrderItem {
     @Enumerated(EnumType.STRING)
     private OrderItemStatus status;
 
-    @Column(name = "reject_reason")
-    private String rejectReason;
+    @Column(name = "note")
+    private String note; // dùng chung cho lý do từ chối (REJECTED) và lý do trả món (RETURNED)
 
     @Column(name = "started_cooking_at")
     private LocalDateTime startedCookingAt; // thời điểm trừ kho theo BOM
@@ -38,6 +38,8 @@ public class OrderItem {
     @Column(name = "served_at")
     private LocalDateTime servedAt;
 
+    @Column(name = "returned_at")
+    private LocalDateTime returnedAt; // NULL nếu lễ tân hoàn tác
     @Column(name = "unit_price", precision = 12, scale = 2)
     private BigDecimal unitPrice; // giá chốt tại thời điểm order
 
@@ -61,14 +63,16 @@ public class OrderItem {
     public Integer getQuantity() { return quantity; }
     public OrderItemStatus getStatus() { return status; }
     public void setStatus(OrderItemStatus status) { this.status = status; }
-    public String getRejectReason() { return rejectReason; }
-    public void setRejectReason(String rejectReason) { this.rejectReason = rejectReason; }
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
     public LocalDateTime getStartedCookingAt() { return startedCookingAt; }
     public void setStartedCookingAt(LocalDateTime t) { this.startedCookingAt = t; }
     public LocalDateTime getDoneAt() { return doneAt; }
     public void setDoneAt(LocalDateTime t) { this.doneAt = t; }
     public LocalDateTime getServedAt() { return servedAt; }
     public void setServedAt(LocalDateTime t) { this.servedAt = t; }
+    public LocalDateTime getReturnedAt() { return returnedAt; }
+    public void setReturnedAt(LocalDateTime t) { this.returnedAt = t; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public OrderCombo getOrderCombo() { return orderCombo; }
     public void setOrderCombo(OrderCombo orderCombo) { this.orderCombo = orderCombo; }

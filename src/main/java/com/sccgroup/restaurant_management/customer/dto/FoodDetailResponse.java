@@ -14,6 +14,7 @@ public record FoodDetailResponse(
         String description,
         Integer estimatedCookingTime,
         boolean available,
+        Integer remainingPortions,
         List<OptionGroupDto> optionGroups) {
 
     public record OptionGroupDto(Long id, String name, SelectionType selectionType, List<OptionDto> options) {}

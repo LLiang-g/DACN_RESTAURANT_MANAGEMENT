@@ -39,4 +39,4 @@ INSERT INTO combo (id, name, discount_type, discount_value) VALUES (1, 'Combo Ph
 INSERT INTO combo_item (combo_id, food_id, quantity) VALUES (1, 1, 1), (1, 3, 1);
 
 INSERT INTO restaurant_table (id, floor, table_number, status) VALUES
- (1, 'Tầng 1', '01', 'TRONG'), (2, 'Tầng 1', '02', 'TRONG'), (3, 'Tầng 2', '01', 'TRONG');
+ (1, 'Tầng 1', '01', 'AVAILABLE'), (2, 'Tầng 1', '02', 'AVAILABLE'), (3, 'Tầng 2', '01', 'AVAILABLE');

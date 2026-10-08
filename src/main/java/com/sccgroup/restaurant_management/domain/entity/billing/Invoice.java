@@ -38,6 +38,8 @@ public class Invoice {
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt; // thời điểm hóa đơn bị hủy tự động sau grace period
 
     protected Invoice() {}
 
@@ -50,12 +52,13 @@ public class Invoice {
     public Long getId() { return id; }
     public RestaurantTable getTable() { return table; }
     public InvoiceStatus getStatus() { return status; }
+    public LocalDateTime getOpenedAt() { return openedAt; }
     public void setStatus(InvoiceStatus status) { this.status = status; }
     public void setPaymentMethod(PaymentMethod paymentMethod) { this.paymentMethod = paymentMethod; }
     public void setAmountReceived(BigDecimal amountReceived) { this.amountReceived = amountReceived; }
     public void setChangeAmount(BigDecimal changeAmount) { this.changeAmount = changeAmount; }
     public void setBankTransactionRef(String ref) { this.bankTransactionRef = ref; }
     public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }
-    public LocalDateTime getOpenedAt() { return openedAt; }
-
+    public LocalDateTime getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; }
 }
