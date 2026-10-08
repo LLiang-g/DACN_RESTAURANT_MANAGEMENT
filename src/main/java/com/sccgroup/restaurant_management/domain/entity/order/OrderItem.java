@@ -38,6 +38,9 @@ public class OrderItem {
     @Column(name = "served_at")
     private LocalDateTime servedAt;
 
+    @Column(name = "returned_at")
+    private LocalDateTime returned_at;
+
     @Column(name = "unit_price", precision = 12, scale = 2)
     private BigDecimal unitPrice; // giá chốt tại thời điểm order
 

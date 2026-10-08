@@ -35,6 +35,7 @@ import com.sccgroup.restaurant_management.domain.repository.order.OrderRepositor
 import com.sccgroup.restaurant_management.domain.service.ComboPriceCalculator;
 import com.sccgroup.restaurant_management.domain.service.IngredientRequirementCalculator;
 import com.sccgroup.restaurant_management.domain.service.IngredientRequirementCalculator.IngredientNeed;
+import com.sccgroup.restaurant_management.domain.service.InvoiceService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,6 +67,8 @@ public class CustomerOrderService {
 
     private final RestaurantTableRepository tableRepository;
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceService invoiceService;
+
     private final FoodRepository foodRepository;
     private final OptionRepository optionRepository;
     private final ComboRepository comboRepository;
@@ -78,8 +81,11 @@ public class CustomerOrderService {
     private final IngredientRequirementCalculator requirementCalculator;
     private final ComboPriceCalculator comboPriceCalculator;
 
+
     public CustomerOrderService(RestaurantTableRepository tableRepository,
                                 InvoiceRepository invoiceRepository,
+                                InvoiceService invoiceService,
+
                                 FoodRepository foodRepository,
                                 OptionRepository optionRepository,
                                 ComboRepository comboRepository,
@@ -93,6 +99,7 @@ public class CustomerOrderService {
                                 ComboPriceCalculator comboPriceCalculator) {
         this.tableRepository = tableRepository;
         this.invoiceRepository = invoiceRepository;
+        this.invoiceService = invoiceService;
         this.foodRepository = foodRepository;
         this.optionRepository = optionRepository;
         this.comboRepository = comboRepository;
@@ -238,10 +245,8 @@ public class CustomerOrderService {
         // ---- 4. Ghi DB ----
         LocalDateTime now = LocalDateTime.now();
 
-        Invoice invoice = invoiceRepository
-                .findFirstByTableIdAndStatusOrderByOpenedAtDesc(table.getId(), InvoiceStatus.OPEN)
-                .orElseGet(() -> invoiceRepository.save(new Invoice(table, InvoiceStatus.OPEN, now)));
-        table.setStatus(TableStatus.DANG_PHUC_VU);
+        // THAY BẰNG 1 dòng này:
+        Invoice invoice = invoiceService.getOrCreateOpenInvoice(table);
 
         Order order = orderRepository.save(new Order(invoice, now));
 

@@ -18,4 +18,7 @@ public interface RestaurantTableRepository extends JpaRepository<RestaurantTable
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from RestaurantTable t where t.id = :id")
     Optional<RestaurantTable> findByIdForUpdate(@Param("id") Long id);
+
+
+
 }

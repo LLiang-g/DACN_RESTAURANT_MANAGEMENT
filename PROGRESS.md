@@ -23,3 +23,40 @@ Thứ tự nên làm :
 
 
 
+
+## 6. Tiến độ theo phân hệ
+
+### 6.1. Customer — xem menu & gửi đơn (PENDING) — người thực hiện: **son**
+
+**Trạng thái**: backend REST xong, đã biên dịch và unit test phần logic thuần. Chưa test tích hợp với MySQL thật; chưa có giao diện React.
+
+**API** (không cần đăng nhập, prefix `/api/customer`):
+
+| Method | Đường dẫn | Mô tả |
+|---|---|---|
+| GET | `/tables/{tableId}` | Xác nhận bàn từ QR, trả tầng + số bàn (404 nếu không có) |
+| GET | `/menu` | Danh mục + món (kèm `available`, `hasOptions`) và danh sách combo (kèm giá, `available`) |
+| GET | `/foods/{foodId}` | Chi tiết món + nhóm tùy chọn (`priceDelta` đã quy về 0 nếu không đổi giá) |
+| POST | `/orders` | Gửi đơn → tạo **một Order mới**, mọi OrderItem ở `PENDING`, trả 201 |
+
+**Body `POST /orders`**:
+```json
+{
+  "tableId": 1,
+  "items":  [ { "foodId": 1, "quantity": 2, "optionIds": [3, 4] } ],
+  "combos": [ { "comboId": 1, "quantity": 1,
+                "items": [ { "foodId": 1, "optionIds": [2] } ] } ]
+}
+```
+
+**File đã tạo**:
+- `customer/controller`: `CustomerMenuController`, `CustomerOrderController`
+- `customer/service`: `CustomerMenuService`, `CustomerOrderService`
+- `customer/dto`: `TableInfoResponse`, `MenuResponse`, `FoodDetailResponse`, `PlaceOrderRequest`, `OrderResponse`
+- `domain/service`: `IngredientRequirementCalculator` (tính nguyên liệu cần theo BOM + option, kiểm tra kho đủ), `ComboPriceCalculator`
+- `domain/repository`: `floor/RestaurantTableRepository`, `billing/InvoiceRepository`, `menu/{Food,Option,Combo,ComboItem}Repository`, `inventory/RecipeRepository`, `order/{Order,OrderCombo,OrderItem,OrderItemOption}Repository`
+- test: `IngredientRequirementCalculatorTest`, `ComboPriceCalculatorTest` (thuần JUnit, không cần DB)
+- `src/main/resources/sample-data/customer_sample_data.sql` — dữ liệu mẫu để test khi Admin chưa xong (chạy thủ công)
+
+**Giao diện khách (React + TypeScript, `frontend/src/customer/`)**: `types.ts`, `api.ts`, `cart.ts`, `OptionPicker.tsx`, `Modals.tsx`, `CustomerApp.tsx`, `customer.css`; `App.tsx` render `CustomerApp`. Không thêm thư viện mới. Vào bằng `http://localhost:5173/?table=<id>` (URL này chính là nội dung mã QR của bàn). `vite.config.ts` có proxy `/api` → `localhost:8080` và `host: true` để điện thoại cùng WiFi truy cập được.
+

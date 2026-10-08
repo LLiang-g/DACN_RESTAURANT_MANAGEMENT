@@ -39,6 +39,8 @@ public class Invoice {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
     protected Invoice() {}
 
     public Invoice(RestaurantTable table, InvoiceStatus status, LocalDateTime openedAt) {
