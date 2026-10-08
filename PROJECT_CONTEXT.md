@@ -26,36 +26,42 @@
 
 ```
 com.sccgroup.restaurant_management/
-├── domain/
-│   ├── entity/          ← TOÀN BỘ 20 entity + enum của hệ thống nằm ở đây
-│   ├──repository/
-│        ├── account    ← KitchenAccountRepository, StaffAccountRepository
-│        ├── menu
-│   └──service    ← InvoiceService
-├── admin/
-│   ├── controller/
-│   ├── service/
-│   └── dto 
-├── customer/
-│   ├── controller/       
-│   ├── service/          
-│   └── dto 
-├── kds/
-│   ├── controller/       
-│   ├── service/          
-│   └── dto 
-├── pos/
-│   ├── controller/      
-│   ├── service/          
-│   └── dto 
-├── common/
-│   ├──exception/        ← ErrorResponse, ResourceNotFoundException, BusinessException, GlobalExceptionHandler
-│   ├──security/      ← AppUserPrincipal, JwtUtil,JwtAuthFilter,SecurityConfig,CustomUserDetailsService,AuthController
-│     
-├── config/
-│   ├── CorsConfig
-│   └── WebSocketConfig    ← STOMP endpoint /ws, broker /topic, prefix /app
-└── RestaurantManagementApplication
+├── frontend/
+│   ├── admin
+│   ├── customer
+│   ├── pos
+│   └── kds
+└── backend/
+    ├── domain/
+    │   ├── entity/          ← TOÀN BỘ 20 entity + enum của hệ thống nằm ở đây
+    │   ├──repository/
+    │   ├── account    ← KitchenAccountRepository, StaffAccountRepository
+    │   ├── menu
+    │   └──service    ← InvoiceService
+    ├── admin/
+    │   ├── controller/
+    │   ├── service/
+    │   └── dto/
+    ├── customer/
+    │   ├── controller/       
+    │   ├── service/          
+    │   └── dto/
+    ├── kds/
+    │   ├── controller/       
+    │   ├── service/          
+    │   └── dto/
+    ├── pos/
+    │   ├── controller/      
+    │   ├── service/          
+    │   └── dto/ 
+    ├── common/
+    │   ├──exception/        ← ErrorResponse, ResourceNotFoundException, BusinessException, GlobalExceptionHandler
+    │   ├──security/      ← AppUserPrincipal, JwtUtil,JwtAuthFilter,SecurityConfig,CustomUserDetailsService,AuthController
+    │     
+    ├── config/
+    │   ├── CorsConfig
+    │   └── WebSocketConfig    ← STOMP endpoint /ws, broker /topic, prefix /app
+    └── RestaurantManagementApplication
 ```
 
 **Quyết định kiến trúc quan trọng**: TẤT CẢ entity đặt chung trong `domain/entity` (không tách theo module), để tránh các module phải import chéo entity của nhau. Các module (`admin`, `customer`, `kds`, `pos`) chỉ chứa `controller`, `service`, `dto`, `repository` của riêng logic nghiệp vụ đó — còn `repository` của entity thì đặt cạnh entity trong `domain`.
@@ -68,7 +74,7 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 
 | Entity | Bảng | Ghi chú |
 |---|---|---|
-| `RestaurantTable` | `restaurant_table` | có enum `TableStatus` |
+| `Table` | `table` | có enum `TableStatus` |
 | `Invoice` | `invoice` | enum `InvoiceStatus`, `PaymentMethod` |
 | `Order` | `customer_order` | |
 | `OrderCombo` | `order_combo` | |
@@ -79,7 +85,7 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 | `Category` | `category` | |
 | `Food` | `food` | |
 | `OptionGroup` | `option_group` | enum `SelectionType` |
-| `Option` | `food_option` | enum `AdjustType` |
+| `Option` | `option` | enum `AdjustType` |
 | `Combo` | `combo` | enum `DiscountType` |
 | `ComboItem` + `ComboItemId` | `combo_item` | khóa chính ghép (`@EmbeddedId`) |
 | `KitchenStation` | `kitchen_station` | **đã test xong** bằng `@DataJpaTest` với MySQL thật |
