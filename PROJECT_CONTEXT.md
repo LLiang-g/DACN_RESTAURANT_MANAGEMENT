@@ -87,7 +87,7 @@ Tên bảng lưu ý tránh từ khóa SQL: `Table` → `restaurant_table`, `Orde
 | `Ingredient` | `ingredient` | dùng `BigDecimal` cho số lượng, không dùng `double`/`float` |
 | `Recipe` | `recipe` | = công thức BOM (định lượng nguyên liệu/món) |
 | `StockTransaction` | `stock_transaction` | lịch sử nhập/xuất/điều chỉnh kho, enum `StockTransactionType` |
-| `StaffAccount` | `staff_account` | enum `StaffRole` (ADMIN/LE_TAN), password phải băm bằng `BCryptPasswordEncoder`, chưa làm |
+| `StaffAccount` | `staff_account` | enum `StaffRole` (ADMIN/RECEPTIONIST'), password phải băm bằng `BCryptPasswordEncoder`, chưa làm |
 
 **Nguồn thiết kế**: `Database.dbml` + `DACN-08-Dac-Ta-Chuc-Nang.md` (đặc tả chức năng) — mọi entity đã đối chiếu khớp với 2 file này.
 
