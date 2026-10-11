@@ -1,5 +1,5 @@
 import type { KdsOrderItem } from '../types';
-import { formatClock, formatHourMinute, getSla } from '../utils/time';
+import { formatClock, formatDateTimeSmart, getSla } from '../utils/time';
 
 interface Props {
   item: KdsOrderItem;
@@ -25,8 +25,8 @@ export default function SlaTimer({ item, now }: Props) {
   if (item.status === 'DONE' && item.doneAt) {
     return (
       <div className="timer timer--done">
-        <span className="timer__value">{formatHourMinute(item.doneAt)}</span>
         <span className="timer__label">xong lúc</span>
+        <span className="timer__value">{formatDateTimeSmart(item.doneAt, now)}</span>
       </div>
     );
   }

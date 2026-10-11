@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { STATIONS } from '../api/mockData';
 import OrderCard from '../components/OrderCard';
 import { useNow } from '../hooks/useNow';
 import { useOrders } from '../hooks/useOrders';
-import type { KdsOrder } from '../types';
+import type { KdsOrder, Session } from '../types';
 
 const VISIBLE = new Set(['CONFIRMED', 'COOKING', 'DONE']);
 
 /** Chờ một chút sau khi bấm Xong cuối cùng để bếp kịp thấy kết quả rồi mới chuyển thẻ (ms). */
 const AUTO_ADVANCE_DELAY = 700;
 
-export default function KitchenBoardPage() {
+interface Props {
+  session: Session;
+  onSignOut: () => void;
+}
+
+export default function KitchenBoardPage({ session, onSignOut }: Props) {
   const now = useNow();
-  const { orders, loading, start, finish } = useOrders();
-  // Tạm chọn khu bếp bằng tay; sau này lấy từ tài khoản đăng nhập (auth/).
-  const [stationId, setStationId] = useState(1);
-  const station = STATIONS.find((s) => s.id === stationId)!;
+  const { orders, loading, error, connected, start, finish, dismissError } = useOrders();
+  // Khu bếp lấy từ tài khoản đang đăng nhập
+  const stationId = session.stationId;
+  const station = { id: session.stationId, name: session.stationName };
 
   const [activeIndex, setActiveIndex] = useState(0);
   const railRef = useRef<HTMLDivElement>(null);
@@ -118,16 +122,14 @@ export default function KitchenBoardPage() {
     <div className="app">
       <header className="topbar">
         <div className="topbar__left">
-          <label className="station-select">
-            <span>Khu bếp</span>
-            <select value={stationId} onChange={(e) => setStationId(Number(e.target.value))}>
-              {STATIONS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="station-badge">{station.name}</div>
+          <span
+            className={`live ${connected ? 'live--on' : 'live--off'}`}
+            title={connected ? 'Đang nhận đơn trực tiếp' : 'Mất kết nối trực tiếp, đang tải định kỳ'}
+          >
+            <i className="live__dot" />
+            {connected ? 'Trực tiếp' : 'Mất kết nối'}
+          </span>
         </div>
 
         <div className="topbar__stats">
@@ -157,8 +159,17 @@ export default function KitchenBoardPage() {
           <time className="clock">
             {new Date(now).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
           </time>
+          <button className="logout-btn" onClick={onSignOut}>
+            Đăng xuất
+          </button>
         </div>
       </header>
+
+      {error && (
+        <div className="toast" role="alert" onClick={dismissError}>
+          {error}
+        </div>
+      )}
 
       <main className="board">
         {loading ? (

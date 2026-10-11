@@ -37,3 +37,11 @@ export interface KdsOrder {
   createdAt: string;
   items: KdsOrderItem[];
 }
+
+/** Phiên đăng nhập của tài khoản khu bếp, lưu trong localStorage. */
+export interface Session {
+  token: string;
+  username: string;
+  stationId: number;
+  stationName: string;
+}

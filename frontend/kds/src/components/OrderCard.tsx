@@ -1,5 +1,5 @@
 import type { KdsOrder, KdsOrderItem } from '../types';
-import { getSla, minutesAgo } from '../utils/time';
+import { formatOrderedAgo, getSla, minutesAgo } from '../utils/time';
 import OrderItemRow from './OrderItemRow';
 import OtherStationRow from './OtherStationRow';
 
@@ -13,6 +13,10 @@ interface Props {
   onStart: (id: number) => void;
   onFinish: (id: number) => void;
 }
+
+/** Số thẻ mỗi hàng. Đặt thẳng bằng style nên không phụ thuộc vào file CSS. */
+const COLUMNS = 3;
+const gridStyle = { gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))` };
 
 const RANK: Record<string, number> = { COOKING: 0, CONFIRMED: 1, DONE: 2 };
 /** Đang nấu lên đầu (món trễ nhất trước), rồi chờ nấu, rồi đã xong. */
@@ -58,7 +62,7 @@ export default function OrderCard({
         <div className="card__meta">
           <div className="card__order">Order #{order.id}</div>
           <div className={`card__wait ${waited >= 15 ? 'card__wait--long' : ''}`}>
-            Đặt {waited} phút trước
+            Đặt {formatOrderedAgo(order.createdAt, now)}
           </div>
         </div>
 
@@ -84,7 +88,7 @@ export default function OrderCard({
           {own.length === 0 ? (
             <p className="empty">Đơn này không có món nào cho khu của bạn.</p>
           ) : (
-            <ul className="grid">
+            <ul className="grid" style={gridStyle}>
               {own.map((i) => (
                 <OrderItemRow
                   key={i.id}
@@ -102,7 +106,7 @@ export default function OrderCard({
         {others.length > 0 && (
           <section className="card__others">
             <h2 className="section-title section-title--muted">Khu bếp khác</h2>
-            <ul className="grid grid--others">
+            <ul className="grid grid--others" style={gridStyle}>
               {others.map((i) => (
                 <OtherStationRow key={i.id} item={i} now={now} />
               ))}

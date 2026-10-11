@@ -236,3 +236,51 @@ button, select { font: inherit; color: inherit; }
   .tile--sla-late { animation: none; }
   .card, .tile__bar-fill { transition: none; }
 }
+
+/* ---------- Tên khu bếp, trạng thái kết nối, đăng xuất ---------- */
+.topbar__left { display: flex; align-items: center; gap: 14px; }
+/* Tên khu bếp nằm trong khung */
+.station-badge {
+  padding: 6px 20px; border-radius: 14px; border: 2px solid var(--wait);
+  background: var(--panel); color: var(--text);
+  font-size: 22px; font-weight: 800; line-height: 1.2;
+}
+.live { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 700; background: rgba(255, 255, 255, 0.7); }
+.live__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.live--on { color: #14693f; }
+.live--off { color: var(--late); }
+.logout-btn {
+  margin-left: 6px; padding: 8px 16px; border-radius: 12px; border: 1px solid rgba(22, 48, 77, 0.25);
+  background: transparent; color: var(--on-ink); font-weight: 600; cursor: pointer;
+}
+.logout-btn:hover { background: rgba(255, 255, 255, 0.55); }
+
+/* ---------- Thông báo lỗi nổi (bấm để ẩn) ---------- */
+.toast {
+  position: fixed; top: 76px; left: 50%; transform: translateX(-50%); z-index: 10;
+  max-width: 60vw; padding: 12px 22px; border-radius: 14px; cursor: pointer;
+  background: var(--late); color: #fff; font-weight: 600; box-shadow: 0 10px 30px rgba(20, 50, 90, 0.3);
+}
+
+/* ---------- Trang đăng nhập ---------- */
+.login { height: 100%; display: grid; place-items: center; padding: 24px; }
+.login__card {
+  width: min(420px, 100%); display: flex; flex-direction: column; gap: 16px;
+  padding: 36px 32px; background: var(--panel); border-radius: var(--radius-card);
+  box-shadow: 0 24px 56px rgba(20, 50, 90, 0.28);
+}
+.login__title { font-size: 28px; font-weight: 800; }
+.login__hint { margin-top: -10px; color: var(--muted); }
+.login__field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 15px; }
+.login__field input {
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--row); font: inherit; font-size: 18px; color: var(--text);
+}
+.login__field input:focus { outline: 2px solid var(--wait); border-color: transparent; }
+.login__error { padding: 10px 14px; border-radius: 12px; background: rgba(196, 57, 47, 0.1); color: var(--late); font-weight: 600; }
+.login__submit {
+  margin-top: 4px; padding: 14px; border: 0; border-radius: 14px; cursor: pointer;
+  background: var(--wait); color: #fff; font-size: 18px; font-weight: 800;
+}
+.login__submit:hover:not(:disabled) { filter: brightness(1.08); }
+.login__submit:disabled { opacity: 0.6; cursor: default; }

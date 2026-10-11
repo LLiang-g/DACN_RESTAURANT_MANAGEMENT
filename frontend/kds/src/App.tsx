@@ -1,6 +1,16 @@
+import { AuthProvider, useAuth } from './auth/AuthContext';
 import KitchenBoardPage from './pages/KitchenBoardPage';
+import LoginPage from './pages/LoginPage';
 
-// TODO: thêm LoginPage + auth/ khi nối backend. Hiện chọn khu bếp ngay trên thanh trên cùng để thử.
+function Gate() {
+  const { session, signOut } = useAuth();
+  return session ? <KitchenBoardPage session={session} onSignOut={signOut} /> : <LoginPage />;
+}
+
 export default function App() {
-  return <KitchenBoardPage />;
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
+  );
 }

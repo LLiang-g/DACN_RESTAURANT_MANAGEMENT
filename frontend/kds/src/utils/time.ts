@@ -39,3 +39,21 @@ export function getSla(item: KdsOrderItem, now: number): SlaInfo | null {
   const level: SlaLevel = ratio >= 1 ? 'late' : ratio >= WARN_RATIO ? 'warn' : 'ok';
   return { elapsedSec, limitSec, remainingSec: limitSec - elapsedSec, ratio, level };
 }
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Chỉ "HH:mm" nếu là hôm nay; khác ngày thì thêm "dd/MM" (khác năm thì thêm cả năm). */
+export function formatDateTimeSmart(iso: string, now: number): string {
+  const d = new Date(iso);
+  const n = new Date(now);
+  const hm = formatHourMinute(iso);
+  if (d.toDateString() === n.toDateString()) return hm;
+  const dm = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
+  return d.getFullYear() === n.getFullYear() ? `${dm} ${hm}` : `${dm}/${d.getFullYear()} ${hm}`;
+}
+
+/** Dưới 1 giờ: "N phút trước"; quá 1 giờ thì ghi mốc thời gian đặt cho khỏi ra con số khổng lồ. */
+export function formatOrderedAgo(iso: string, now: number): string {
+  const m = minutesAgo(iso, now);
+  return m < 60 ? `${m} phút trước` : `lúc ${formatDateTimeSmart(iso, now)}`;
+}
