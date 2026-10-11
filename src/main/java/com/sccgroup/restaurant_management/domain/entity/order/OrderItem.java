@@ -40,6 +40,7 @@ public class OrderItem {
 
     @Column(name = "returned_at")
     private LocalDateTime returnedAt; // NULL nếu lễ tân hoàn tác
+
     @Column(name = "unit_price", precision = 12, scale = 2)
     private BigDecimal unitPrice; // giá chốt tại thời điểm order
 

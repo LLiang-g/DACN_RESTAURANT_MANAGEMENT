@@ -3,7 +3,7 @@ package com.sccgroup.restaurant_management.domain.controller;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
-import com.sccgroup.restaurant_management.domain.repository.RestaurantTableRepository;
+import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import com.sccgroup.restaurant_management.domain.service.InvoiceService;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
