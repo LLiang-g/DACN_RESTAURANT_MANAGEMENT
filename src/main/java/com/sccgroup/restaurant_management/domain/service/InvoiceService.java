@@ -3,7 +3,7 @@ package com.sccgroup.restaurant_management.domain.service;
 import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
 import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
-import com.sccgroup.restaurant_management.domain.repository.InvoiceRepository;
+import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
