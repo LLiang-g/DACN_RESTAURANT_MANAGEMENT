@@ -62,6 +62,8 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
     const prev = pendingRef.current;
     const sameStation = prev.stationId === stationId;
     const next = new Map<number, number>();
+    const hasWork = (o: KdsOrder) =>
+      o.items.some((i) => i.stationId === stationId && (i.status === 'CONFIRMED' || i.status === 'COOKING'));
 
     board.forEach((o, idx) => {
       const pending = o.items.filter(
@@ -71,12 +73,16 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
 
       const before = prev.byOrder.get(o.id);
       const justFinished = sameStation && before !== undefined && before > 0 && pending === 0;
-      if (justFinished && idx === activeIndexRef.current && idx < board.length - 1) {
-        window.clearTimeout(advanceTimer.current);
-        advanceTimer.current = window.setTimeout(() => {
-          // Chỉ chuyển nếu bếp vẫn đang xem đúng thẻ đó (chưa tự cuộn sang chỗ khác).
-          if (activeIndexRef.current === idx) goTo(idx + 1);
-        }, AUTO_ADVANCE_DELAY);
+      if (justFinished && idx === activeIndexRef.current) {
+        // Nhảy tới đơn kế tiếp CÒN việc của khu mình, bỏ qua những đơn không có món nào của khu mình.
+        const target = board.findIndex((order, j) => j > idx && hasWork(order));
+        if (target !== -1) {
+          window.clearTimeout(advanceTimer.current);
+          advanceTimer.current = window.setTimeout(() => {
+            // Chỉ chuyển nếu bếp vẫn đang xem đúng thẻ đó (chưa tự cuộn sang chỗ khác).
+            if (activeIndexRef.current === idx) goTo(target);
+          }, AUTO_ADVANCE_DELAY);
+        }
       }
     });
 

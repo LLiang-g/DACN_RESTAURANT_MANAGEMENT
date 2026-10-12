@@ -17,9 +17,11 @@ import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepos
 import com.sccgroup.restaurant_management.domain.service.IngredientRequirementCalculator;
 import com.sccgroup.restaurant_management.kds.dto.KdsOrderDto;
 import com.sccgroup.restaurant_management.kds.dto.KdsOrderItemDto;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -114,26 +116,42 @@ public class KdsService {
         if (item.getStatus() != OrderItemStatus.CONFIRMED) {
             throw new BusinessException("Món này không ở trạng thái chờ nấu");
         }
-
-        LocalDateTime now = LocalDateTime.now();
-        deductStock(item, now);
-
-        item.setStatus(OrderItemStatus.COOKING);
-        item.setStartedCookingAt(now);
-        log(principal, "START_COOKING", item, now);
+        startItem(item, principal, LocalDateTime.now(), "START_COOKING");
         eventPublisher.publishChanged();
     }
 
+    /** Chuyển một món sang đang nấu: trừ kho, đặt giờ bắt đầu, ghi log. Dùng chung cho bấm tay và tự động. */
+    private void startItem(OrderItem item, AppUserPrincipal principal, LocalDateTime now, String action) {
+        deductStock(item, now);
+        item.setStatus(OrderItemStatus.COOKING);
+        item.setStartedCookingAt(now);
+        log(principal, action, item, now);
+    }
+
+    /**
+     * Trừ kho cho một món. Thứ tự: khóa nguyên liệu (theo id) -> kiểm tra tồn kho thật -> mới trừ.
+     * Nếu thiếu thì ném BusinessException TRƯỚC khi thay đổi bất cứ thứ gì, nên nhánh tự động
+     * (bỏ qua món thiếu nguyên liệu) có thể bắt ngoại lệ mà không để lại trừ kho dở dang.
+     */
     private void deductStock(OrderItem item, LocalDateTime now) {
         var recipes = stockRepository.findRecipesByFoodId(item.getFood().getId());
         var options = orderItemRepository.findOptionsByItemId(item.getId());
         var needs = new ArrayList<>(calculator.calculate(recipes, item.getQuantity(), options));
-        // Luôn trừ theo thứ tự id nguyên liệu: hai món nấu cùng lúc sẽ không khóa chéo nhau (deadlock)
+        if (needs.isEmpty()) return;
+        // Luôn khóa/trừ theo thứ tự id nguyên liệu: hai món nấu cùng lúc sẽ không khóa chéo nhau (deadlock)
         needs.sort(Comparator.comparing(n -> n.ingredient().getId()));
+
+        stockRepository.lockByIds(needs.stream().map(n -> n.ingredient().getId()).toList());
+        for (var need : needs) {
+            BigDecimal stock = stockRepository.findStockQuantity(need.ingredient().getId());
+            if (stock == null || stock.compareTo(need.amount()) < 0) {
+                throw new BusinessException("Không đủ nguyên liệu để nấu: " + need.ingredient().getName());
+            }
+        }
 
         for (var need : needs) {
             int updated = stockRepository.deduct(need.ingredient().getId(), need.amount());
-            if (updated == 0) {
+            if (updated == 0) { // đã khóa và kiểm tra ở trên nên không thể xảy ra, giữ lại làm chốt an toàn
                 throw new BusinessException("Không đủ nguyên liệu để nấu: " + need.ingredient().getName());
             }
             stockTransactionRepository.save(new StockTransaction(need.ingredient(), StockTransactionType.EXPORT,
@@ -143,10 +161,24 @@ public class KdsService {
 
     // ------------------------------------------------------------------ Bấm "Xong"
 
-    /** COOKING -> DONE. */
+    /**
+     * COOKING -> DONE. Nếu đây là món cuối cùng chưa xong của khu bếp này trong order thì tự động chuyển
+     * mọi món của khu bếp trong order cũ nhất kế tiếp (đang chờ nấu) sang đang nấu.
+     * Mọi thứ nằm trong một giao dịch và chỉ đẩy tín hiệu sau khi commit, nên tất cả màn hình thấy cùng một trạng thái.
+     */
     @Transactional
     public void finishCooking(Long itemId, AppUserPrincipal principal) {
-        OrderItem item = lockOwnedItem(itemId, principal);
+        Long stationId = requireStation(principal);
+        Long orderId = orderItemRepository.findOrderIdByItemId(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món #" + itemId));
+
+        // Khóa mọi món của khu mình trong order này: hai người cùng khu bấm Xong cùng lúc sẽ xếp hàng,
+        // người sau thấy đúng trạng thái người trước vừa ghi.
+        List<OrderItem> mine = orderItemRepository.findByOrderIdAndStationIdForUpdate(orderId, stationId);
+        OrderItem item = mine.stream()
+                .filter(i -> i.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("Món này không thuộc khu bếp của bạn"));
         if (item.getStatus() != OrderItemStatus.COOKING) {
             throw new BusinessException("Món này không ở trạng thái đang nấu");
         }
@@ -155,22 +187,53 @@ public class KdsService {
         item.setStatus(OrderItemStatus.DONE);
         item.setDoneAt(now);
         log(principal, "FINISH_COOKING", item, now);
+
+        boolean lastOne = mine.stream().noneMatch(i ->
+                i.getStatus() == OrderItemStatus.CONFIRMED || i.getStatus() == OrderItemStatus.COOKING);
+        if (lastOne) {
+            autoStartNextOrder(stationId, principal, now);
+        }
         eventPublisher.publishChanged();
+    }
+
+    /**
+     * Tìm order cũ nhất còn món chờ nấu của khu bếp (order không có món nào của khu bếp tự bị bỏ qua)
+     * và chuyển các món chờ nấu của khu bếp trong order đó sang đang nấu.
+     * Món nào thiếu nguyên liệu thì bỏ qua, giữ nguyên chờ nấu để bếp tự bấm và thấy thông báo lỗi.
+     */
+    private void autoStartNextOrder(Long stationId, AppUserPrincipal principal, LocalDateTime now) {
+        List<Long> next = orderItemRepository.findOrderIdsWithStatusForStation(
+                OrderItemStatus.CONFIRMED, stationId, PageRequest.of(0, 1));
+        if (next.isEmpty()) return;
+
+        for (OrderItem candidate : orderItemRepository.findByOrderIdAndStationIdForUpdate(next.get(0), stationId)) {
+            if (candidate.getStatus() != OrderItemStatus.CONFIRMED) continue;
+            try {
+                startItem(candidate, principal, now, "AUTO_START_COOKING");
+            } catch (BusinessException e) {
+                // thiếu nguyên liệu: chưa thay đổi gì nên cứ để món này ở trạng thái chờ nấu
+            }
+        }
     }
 
     // ------------------------------------------------------------------ Dùng chung
 
-    /** Khóa dòng món rồi kiểm tra món có thuộc khu bếp của tài khoản đang đăng nhập không. */
-    private OrderItem lockOwnedItem(Long itemId, AppUserPrincipal principal) {
+    private Long requireStation(AppUserPrincipal principal) {
         if (principal.getStationId() == null) {
             throw new BusinessException("Tài khoản này không thuộc khu bếp nào");
         }
+        return principal.getStationId();
+    }
+
+    /** Khóa dòng món rồi kiểm tra món có thuộc khu bếp của tài khoản đang đăng nhập không. */
+    private OrderItem lockOwnedItem(Long itemId, AppUserPrincipal principal) {
+        Long stationId = requireStation(principal);
         OrderItem item = orderItemRepository.findAllByIdForUpdate(List.of(itemId)).stream()
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món #" + itemId));
 
         Long itemStationId = item.getFood().getCategory().getKitchenStation().getId();
-        if (!itemStationId.equals(principal.getStationId())) {
+        if (!itemStationId.equals(stationId)) {
             throw new BusinessException("Món này không thuộc khu bếp của bạn");
         }
         return item;

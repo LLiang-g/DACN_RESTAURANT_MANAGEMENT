@@ -4,6 +4,7 @@ import com.sccgroup.restaurant_management.domain.entity.menu.Option;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItem;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -63,4 +64,29 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     /** Các option (entity) của một món, dùng khi tính nguyên liệu để trừ kho. */
     @Query("select oio.option from OrderItemOption oio where oio.orderItem.id = :id")
     List<Option> findOptionsByItemId(@Param("id") Long id);
+
+    /** Id order của một món (không khóa). */
+    @Query("select oi.order.id from OrderItem oi where oi.id = :id")
+    Optional<Long> findOrderIdByItemId(@Param("id") Long id);
+
+    /**
+     * Mọi món thuộc một khu bếp trong một order, khóa dòng theo thứ tự id.
+     * Hai người cùng khu bấm Xong cùng lúc sẽ xếp hàng nhờ khóa này, và luôn khóa theo cùng thứ tự nên không khóa chéo.
+     * Dùng truy vấn con thay vì join để chỉ khóa các dòng order_item (không khóa món ăn/danh mục).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select oi from OrderItem oi where oi.order.id = :orderId and oi.food.id in " +
+           "(select f.id from Food f where f.category.kitchenStation.id = :stationId) order by oi.id")
+    List<OrderItem> findByOrderIdAndStationIdForUpdate(@Param("orderId") Long orderId,
+                                                       @Param("stationId") Long stationId);
+
+    /**
+     * Id các order còn món ở trạng thái đã cho thuộc khu bếp, order cũ nhất trước.
+     * Truyền PageRequest.of(0, 1) để chỉ lấy order cũ nhất. Order không có món nào của khu bếp thì không xuất hiện ở đây.
+     */
+    @Query("select o.id from OrderItem oi join oi.order o join oi.food f join f.category c " +
+           "where oi.status = :status and c.kitchenStation.id = :stationId order by o.createdAt, o.id")
+    List<Long> findOrderIdsWithStatusForStation(@Param("status") OrderItemStatus status,
+                                                @Param("stationId") Long stationId,
+                                                Pageable pageable);
 }

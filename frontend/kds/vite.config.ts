@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /**
@@ -6,10 +7,10 @@ import react from '@vitejs/plugin-react';
  * nên Spring tưởng đây là request chéo nguồn và chặn bằng 403 "Invalid CORS request".
  * Bỏ header Origin ở đây thì backend coi như request thường (giống khi gọi bằng Postman).
  */
-function stripOrigin(proxy: { on: (event: string, handler: (req: { removeHeader: (name: string) => void }) => void) => void }) {
-  proxy.on('proxyReq', (req) => req.removeHeader('origin'));
-  proxy.on('proxyReqWs', (req) => req.removeHeader('origin'));
-}
+const stripOrigin: ProxyOptions['configure'] = (proxy) => {
+  proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'));
+  proxy.on('proxyReqWs', (proxyReq) => proxyReq.removeHeader('origin'));
+};
 
 export default defineConfig({
   plugins: [react()],
