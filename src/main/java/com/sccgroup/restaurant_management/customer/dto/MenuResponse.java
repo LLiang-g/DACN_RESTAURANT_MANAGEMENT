@@ -19,6 +19,7 @@ public record MenuResponse(List<CategoryDto> categories, List<ComboDto> combos) 
             String description,
             Integer estimatedCookingTime,
             boolean available,
+            Integer remainingPortions, // null = không giới hạn (món chưa có công thức)
             boolean hasOptions) {}
 
     public record ComboDto(
@@ -27,6 +28,7 @@ public record MenuResponse(List<CategoryDto> categories, List<ComboDto> combos) 
             BigDecimal price,
             BigDecimal originalPrice,
             boolean available,
+            Integer remainingPortions,
             List<ComboItemDto> items) {}
 
     public record ComboItemDto(Long foodId, String foodName, Integer quantity, boolean hasOptions) {}

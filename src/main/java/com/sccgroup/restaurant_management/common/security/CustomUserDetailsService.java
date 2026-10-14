@@ -34,8 +34,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         var kitchen = kitchenRepo.findByUsername(username);
         if (kitchen.isPresent()) {
             var k = kitchen.get();
+            // kitchenStation đã được nạp sẵn bằng @EntityGraph trong repository,
+            // vì hàm này chạy trong filter (ngoài phiên Hibernate) nên không thể nạp lười.
+            var station = k.getKitchenStation();
             return new AppUserPrincipal(k.getId(), k.getUsername(), k.getPasswordHash(),
-                    "KITCHEN", "KITCHEN");
+                    "KITCHEN", "KITCHEN", station.getId(), station.getName());
         }
 
         throw new UsernameNotFoundException("Không tìm thấy tài khoản: " + username);

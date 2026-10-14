@@ -14,19 +14,32 @@ public class AppUserPrincipal implements UserDetails {
     private final String passwordHash;
     private final String accountType; // "STAFF" hoặc "KITCHEN"
     private final String role;        // ADMIN / LE_TAN / KITCHEN
+    private final Long stationId;     // chỉ có giá trị với tài khoản KITCHEN, STAFF thì null
+    private final String stationName; // tương tự stationId
 
+    // Constructor cũ giữ nguyên để code đang dùng không bị vỡ (STAFF không có khu bếp)
     public AppUserPrincipal(Long accountId, String username, String passwordHash,
                             String accountType, String role) {
+        this(accountId, username, passwordHash, accountType, role, null, null);
+    }
+
+    public AppUserPrincipal(Long accountId, String username, String passwordHash,
+                            String accountType, String role,
+                            Long stationId, String stationName) {
         this.accountId = accountId;
         this.username = username;
         this.passwordHash = passwordHash;
         this.accountType = accountType;
         this.role = role;
+        this.stationId = stationId;
+        this.stationName = stationName;
     }
 
     public Long getAccountId() { return accountId; }
     public String getAccountType() { return accountType; }
     public String getRole() { return role; }
+    public Long getStationId() { return stationId; }
+    public String getStationName() { return stationName; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

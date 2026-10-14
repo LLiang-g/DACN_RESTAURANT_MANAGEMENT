@@ -20,6 +20,7 @@ import com.sccgroup.restaurant_management.domain.repository.menu.OptionRepositor
 import com.sccgroup.restaurant_management.domain.service.ComboPriceCalculator;
 import com.sccgroup.restaurant_management.domain.service.IngredientRequirementCalculator;
 import com.sccgroup.restaurant_management.domain.service.IngredientRequirementCalculator.IngredientNeed;
+import com.sccgroup.restaurant_management.domain.service.StockReservationService;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class CustomerMenuService {
     private final RecipeRepository recipeRepository;
     private final IngredientRequirementCalculator requirementCalculator;
     private final ComboPriceCalculator comboPriceCalculator;
+    private final StockReservationService reservationService;
 
     public CustomerMenuService(RestaurantTableRepository tableRepository,
                                FoodRepository foodRepository,
@@ -54,7 +56,8 @@ public class CustomerMenuService {
                                ComboItemRepository comboItemRepository,
                                RecipeRepository recipeRepository,
                                IngredientRequirementCalculator requirementCalculator,
-                               ComboPriceCalculator comboPriceCalculator) {
+                               ComboPriceCalculator comboPriceCalculator,
+                               StockReservationService reservationService) {
         this.tableRepository = tableRepository;
         this.foodRepository = foodRepository;
         this.optionRepository = optionRepository;
@@ -63,6 +66,7 @@ public class CustomerMenuService {
         this.recipeRepository = recipeRepository;
         this.requirementCalculator = requirementCalculator;
         this.comboPriceCalculator = comboPriceCalculator;
+        this.reservationService = reservationService;
     }
 
     /** Xác nhận bàn từ mã QR và trả thông tin để hiển thị ("Bàn 5 - Tầng 1"). */
@@ -79,53 +83,56 @@ public class CustomerMenuService {
         List<Food> foods = foodRepository.findAllWithCategory();
         Map<Long, List<Recipe>> recipesByFood =
                 requirementCalculator.groupByFood(recipeRepository.findAllWithIngredient());
+        Map<Long, BigDecimal> reserved = reservationService.reservedByIngredient();
 
         Set<Long> foodIdsWithOptions = new HashSet<>();
         if (!foods.isEmpty()) {
             List<Long> foodIds = foods.stream().map(Food::getId).toList();
-            for (Option o : optionRepository.findByFoodIdIn(foodIds)) {
-                foodIdsWithOptions.add(o.getFood().getId());
+            for (Option option : optionRepository.findByFoodIdIn(foodIds)) {
+                foodIdsWithOptions.add(option.getFood().getId());
             }
         }
 
         // ---- Danh mục món (bỏ danh mục rỗng) ----
         Map<Long, String> categoryNames = new LinkedHashMap<>();
         Map<Long, List<MenuResponse.FoodDto>> foodsByCategory = new LinkedHashMap<>();
-        for (Food f : foods) {
-            Category c = f.getCategory();
-            categoryNames.putIfAbsent(c.getId(), c.getName());
-            foodsByCategory.computeIfAbsent(c.getId(), k -> new ArrayList<>()).add(new MenuResponse.FoodDto(
-                    f.getId(), f.getName(), f.getPrice(), f.getImage(), f.getDescription(),
-                    f.getEstimatedCookingTime(),
-                    isFoodAvailable(recipesByFood.get(f.getId())),
-                    foodIdsWithOptions.contains(f.getId())));
+        for (Food food : foods) {
+            Category category = food.getCategory();
+            categoryNames.putIfAbsent(category.getId(), category.getName());
+            Integer portions = foodPortions(recipesByFood.get(food.getId()), reserved);
+            foodsByCategory.computeIfAbsent(category.getId(), key -> new ArrayList<>()).add(new MenuResponse.FoodDto(
+                    food.getId(), food.getName(), food.getPrice(), food.getImage(), food.getDescription(),
+                    food.getEstimatedCookingTime(),
+                    portions == null || portions > 0, portions,
+                    foodIdsWithOptions.contains(food.getId())));
         }
         List<MenuResponse.CategoryDto> categories = new ArrayList<>();
-        foodsByCategory.forEach((id, list) ->
-                categories.add(new MenuResponse.CategoryDto(id, categoryNames.get(id), list)));
+        foodsByCategory.forEach((categoryId, foodDtos) ->
+                categories.add(new MenuResponse.CategoryDto(categoryId, categoryNames.get(categoryId), foodDtos)));
 
         // ---- Combo ----
         Map<Long, List<ComboItem>> itemsByCombo = new HashMap<>();
-        for (ComboItem ci : comboItemRepository.findAllWithFood()) {
-            itemsByCombo.computeIfAbsent(ci.getCombo().getId(), k -> new ArrayList<>()).add(ci);
+        for (ComboItem comboItem : comboItemRepository.findAllWithFood()) {
+            itemsByCombo.computeIfAbsent(comboItem.getCombo().getId(), key -> new ArrayList<>()).add(comboItem);
         }
         List<MenuResponse.ComboDto> combos = new ArrayList<>();
         for (Combo combo : comboRepository.findAll(Sort.by("id"))) {
             List<ComboItem> items = itemsByCombo.getOrDefault(combo.getId(), List.of());
             if (items.isEmpty()) continue; // combo chưa có món con thì không thể đặt
-            items.sort(Comparator.comparing(ci -> ci.getFood().getId()));
+            items.sort(Comparator.comparing(comboItem -> comboItem.getFood().getId()));
 
             List<MenuResponse.ComboItemDto> itemDtos = items.stream()
-                    .map(ci -> new MenuResponse.ComboItemDto(
-                            ci.getFood().getId(), ci.getFood().getName(), ci.getQuantity(),
-                            foodIdsWithOptions.contains(ci.getFood().getId())))
+                    .map(comboItem -> new MenuResponse.ComboItemDto(
+                            comboItem.getFood().getId(), comboItem.getFood().getName(), comboItem.getQuantity(),
+                            foodIdsWithOptions.contains(comboItem.getFood().getId())))
                     .toList();
 
+            Integer comboPortions = comboPortions(items, recipesByFood, reserved);
             combos.add(new MenuResponse.ComboDto(
                     combo.getId(), combo.getName(),
                     comboPriceCalculator.price(combo, items),
                     comboPriceCalculator.originalPrice(items),
-                    isComboAvailable(items, recipesByFood),
+                    comboPortions == null || comboPortions > 0, comboPortions,
                     itemDtos));
         }
 
@@ -145,42 +152,43 @@ public class CustomerMenuService {
         Map<Long, String> groupNames = new LinkedHashMap<>();
         Map<Long, Option> firstOfGroup = new HashMap<>();
         Map<Long, List<FoodDetailResponse.OptionDto>> optionsByGroup = new LinkedHashMap<>();
-        for (Option o : options) {
-            Long gid = o.getOptionGroup().getId();
-            groupNames.putIfAbsent(gid, o.getOptionGroup().getName());
-            firstOfGroup.putIfAbsent(gid, o);
-            BigDecimal delta = o.getPriceDelta() == null ? BigDecimal.ZERO : o.getPriceDelta();
-            optionsByGroup.computeIfAbsent(gid, k -> new ArrayList<>())
-                    .add(new FoodDetailResponse.OptionDto(o.getId(), o.getName(), delta));
+        for (Option option : options) {
+            Long groupId = option.getOptionGroup().getId();
+            groupNames.putIfAbsent(groupId, option.getOptionGroup().getName());
+            firstOfGroup.putIfAbsent(groupId, option);
+            BigDecimal delta = option.getPriceDelta() == null ? BigDecimal.ZERO : option.getPriceDelta();
+            optionsByGroup.computeIfAbsent(groupId, key -> new ArrayList<>())
+                    .add(new FoodDetailResponse.OptionDto(option.getId(), option.getName(), delta));
         }
         List<FoodDetailResponse.OptionGroupDto> groups = new ArrayList<>();
-        optionsByGroup.forEach((gid, list) -> groups.add(new FoodDetailResponse.OptionGroupDto(
-                gid, groupNames.get(gid), firstOfGroup.get(gid).getOptionGroup().getSelectionType(), list)));
+        optionsByGroup.forEach((groupId, optionDtos) -> groups.add(new FoodDetailResponse.OptionGroupDto(
+                groupId, groupNames.get(groupId), firstOfGroup.get(groupId).getOptionGroup().getSelectionType(), optionDtos)));
 
+        Integer portions = foodPortions(recipes, reservationService.reservedByIngredient());
         return new FoodDetailResponse(food.getId(), food.getName(), food.getPrice(), food.getImage(),
-                food.getDescription(), food.getEstimatedCookingTime(), isFoodAvailable(recipes), groups);
+                food.getDescription(), food.getEstimatedCookingTime(),
+                portions == null || portions > 0, portions, groups);
     }
 
     // ------------------------------------------------------------------ còn / hết hàng
 
-    /** Món còn hàng nếu kho đủ cho 1 phần theo công thức gốc. Món chưa có công thức được coi là còn. */
-    private boolean isFoodAvailable(List<Recipe> recipes) {
-        if (recipes == null || recipes.isEmpty()) return true;
-        List<IngredientNeed> needs = requirementCalculator.calculate(recipes, 1, List.of());
-        return requirementCalculator.isSufficient(needs, new HashMap<>());
+    /**
+     * Số suất còn làm được = min theo nguyên liệu của (tồn kho − phần đang giữ chỗ bởi các đơn chưa tới bếp) / định lượng.
+     * null nếu món chưa có công thức (không giới hạn).
+     */
+    private Integer foodPortions(List<Recipe> recipes, Map<Long, BigDecimal> reserved) {
+        if (recipes == null || recipes.isEmpty()) return null;
+        return requirementCalculator.maxPortions(requirementCalculator.calculate(recipes, 1, List.of()), reserved);
     }
 
-    /** Combo hết hàng nếu chỉ cần MỘT món con hết (có tính cộng dồn nguyên liệu dùng chung giữa các món con). */
-    private boolean isComboAvailable(List<ComboItem> items, Map<Long, List<Recipe>> recipesByFood) {
-        Map<Long, BigDecimal> used = new HashMap<>();
-        for (ComboItem ci : items) {
-            List<Recipe> recipes = recipesByFood.get(ci.getFood().getId());
+    /** Số suất combo = tính trên nhu cầu gộp của mọi món con, nên một món con hết thì cả combo hết. */
+    private Integer comboPortions(List<ComboItem> items, Map<Long, List<Recipe>> recipesByFood, Map<Long, BigDecimal> reserved) {
+        List<IngredientNeed> needs = new ArrayList<>();
+        for (ComboItem comboItem : items) {
+            List<Recipe> recipes = recipesByFood.get(comboItem.getFood().getId());
             if (recipes == null || recipes.isEmpty()) continue;
-            int qty = ci.getQuantity() == null ? 1 : ci.getQuantity();
-            List<IngredientNeed> needs = requirementCalculator.calculate(recipes, qty, List.of());
-            if (!requirementCalculator.isSufficient(needs, used)) return false;
-            requirementCalculator.accumulate(needs, used);
+            needs.addAll(requirementCalculator.calculate(recipes, comboItem.getQuantity() == null ? 1 : comboItem.getQuantity(), List.of()));
         }
-        return true;
+        return requirementCalculator.maxPortions(needs, reserved);
     }
 }
