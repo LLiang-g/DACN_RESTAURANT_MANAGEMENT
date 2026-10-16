@@ -89,4 +89,17 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<Long> findOrderIdsWithStatusForStation(@Param("status") OrderItemStatus status,
                                                 @Param("stationId") Long stationId,
                                                 Pageable pageable);
+
+
+
+    // ===================== Dành cho lễ tân (module pos) =====================
+    @Query("""
+    select oi from OrderItem oi
+    join fetch oi.food f
+    left join fetch oi.orderCombo oc
+    left join fetch oc.combo c
+    where oi.order.id in :orderIds
+    order by oi.order.id asc, oi.id asc
+    """)
+    List<OrderItem> findByOrderIdInWithFood(@Param("orderIds") List<Long> orderIds);
 }
