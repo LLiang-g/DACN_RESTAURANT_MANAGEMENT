@@ -23,8 +23,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
+        String code = e.getCode() != null ? e.getCode() : "BUSINESS_ERROR";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse("BUSINESS_ERROR", e.getMessage()));
+                .body(new ErrorResponse(code, e.getMessage()));
     }
 
     // Đăng nhập sai tên hoặc mật khẩu (BadCredentialsException...) -> 401 thay vì rơi xuống lỗi 500

@@ -52,7 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/customer/**").permitAll() // khách không đăng nhập
                         .requestMatchers("/ws/**").permitAll()            // WebSocket handshake
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/pos/**").hasAnyRole("ADMIN", "LE_TAN")
+                        .requestMatchers("/api/pos/**").hasAnyRole("ADMIN", "RECEPTIONIST")
                         .requestMatchers("/api/kds/**").hasAnyRole("ADMIN", "KITCHEN")
                         .anyRequest().authenticated()
                 )

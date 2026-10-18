@@ -24,4 +24,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
                                         @Param("excluded") OrderItemStatus excluded);
 
     Optional<Invoice> findByTableAndStatus(RestaurantTable table, InvoiceStatus status);
+
+    @Query("""
+    select i from Invoice i
+    join fetch i.table t
+    where i.status = com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus.OPEN
+    """)
+    List<Invoice> findAllOpenWithTable();
 }
