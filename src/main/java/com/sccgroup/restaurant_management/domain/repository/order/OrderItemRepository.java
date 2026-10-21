@@ -24,6 +24,15 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     @Query("select oi.order.invoice.table.id from OrderItem oi where oi.id = :id")
     Optional<Long> findTableIdByItemId(@Param("id") Long id);
 
+    /** Bàn mà Order này thuộc về (không nạp entity, không khóa). */
+    @Query("select oi.order.invoice.table.id from OrderItem oi where oi.order.id = :orderId")
+    List<Long> findTableIdsByOrderId(@Param("orderId") Long orderId);
+
+    /** Đọc + khóa mọi món của một Order (SELECT ... FOR UPDATE). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select oi from OrderItem oi where oi.order.id = :orderId")
+    List<OrderItem> findByOrderIdForUpdate(@Param("orderId") Long orderId);
+
     /** Id các món cùng một combo trong đơn. */
     @Query("select oi.id from OrderItem oi where oi.orderCombo.id = :comboId")
     List<Long> findIdsByOrderComboId(@Param("comboId") Long comboId);

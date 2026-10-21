@@ -6,6 +6,7 @@ import com.sccgroup.restaurant_management.domain.entity.floor.CallStaffRequest;
 import com.sccgroup.restaurant_management.domain.entity.floor.CallStaffStatus;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
 import com.sccgroup.restaurant_management.domain.repository.floor.CallStaffRequestRepository;
+import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,9 +19,12 @@ public class CustomerCallStaffService {
 
     private final RestaurantTableRepository tableRepository;
     private final CallStaffRequestRepository requestRepository;
+    private final TableEventPublisher tableEventPublisher;
 
     public CustomerCallStaffService(RestaurantTableRepository tableRepository,
-                                    CallStaffRequestRepository requestRepository) {
+                                    CallStaffRequestRepository requestRepository,
+                                    TableEventPublisher tableEventPublisher) {
+        this.tableEventPublisher = tableEventPublisher;
         this.tableRepository = tableRepository;
         this.requestRepository = requestRepository;
     }
@@ -35,6 +39,8 @@ public class CustomerCallStaffService {
                 .map(callStaffRequest -> new CallStaffResponse(callStaffRequest.getId(), callStaffRequest.getCreatedAt(), true))
                 .orElseGet(() -> {
                     CallStaffRequest callStaffRequest = requestRepository.save(new CallStaffRequest(table, LocalDateTime.now()));
+                    tableEventPublisher.publishPosEvent(TableEventPublisher.EVENT_CALL_STAFF, tableId);
+                    tableEventPublisher.publishTableChanged(tableId);
                     return new CallStaffResponse(callStaffRequest.getId(), callStaffRequest.getCreatedAt(), false);
                 });
     }

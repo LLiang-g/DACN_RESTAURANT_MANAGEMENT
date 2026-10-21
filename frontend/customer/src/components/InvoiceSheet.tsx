@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { cancelItem, getInvoice } from "../api/api"
+import { cancelItem, cancelOrder, getInvoice } from "../api/api"
+import { connectTableSocket } from "../realtime/tableSocket"
 import { formatVnd } from "../store/cart"
 import { Sheet } from "./Modals"
 import type { InvoiceItem, InvoiceView, ItemStatus } from "../types/types"
@@ -14,7 +15,9 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   RETURNED: "Đã trả lại",
 }
 
-const POLL_INTERVAL_MS = 5000
+// Cập nhật chính đến từ WebSocket; tải định kỳ chỉ là dự phòng khi mất kết nối
+const POLL_INTERVAL_MS = 15000
+const COUNTDOWN_TICK_MS = 30000
 
 /** Thời gian chế biến dự kiến còn lại của món đang nấu. */
 function remainingCookingText(invoiceItem: InvoiceItem, now: number): string {
@@ -30,7 +33,7 @@ export default function InvoiceSheet({ tableId, onClose }: { tableId: number; on
   const [busyId, setBusyId] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now()) // cập nhật theo mỗi lần tải để tính thời gian còn lại
 
-  // Chưa có WebSocket cho khách nên tải lại định kỳ để thấy trạng thái mới
+  // Nhận tín hiệu realtime của bàn (/topic/table/{id}) rồi tải lại; kèm tải định kỳ dự phòng
   useEffect(() => {
     let alive = true
     const load = () =>
@@ -43,9 +46,13 @@ export default function InvoiceSheet({ tableId, onClose }: { tableId: number; on
         .catch((loadError: Error) => alive && setError(loadError.message))
     load()
     const timer = setInterval(load, POLL_INTERVAL_MS)
+    const tick = setInterval(() => setNow(Date.now()), COUNTDOWN_TICK_MS)
+    const disconnect = connectTableSocket(tableId, load)
     return () => {
       alive = false
       clearInterval(timer)
+      clearInterval(tick)
+      disconnect()
     }
   }, [tableId])
 
@@ -66,6 +73,20 @@ export default function InvoiceSheet({ tableId, onClose }: { tableId: number; on
     }
   }
 
+  async function cancelWholeOrder(orderId: number) {
+    if (!window.confirm(`Hủy cả đơn #${orderId}?`)) return
+    setBusyId(-orderId)
+    setError(null)
+    try {
+      setInvoice(await cancelOrder(tableId, orderId))
+    } catch (caughtError) {
+      setError((caughtError as Error).message) // ví dụ: bếp đã nấu một số món trong đơn
+      getInvoice(tableId).then(setInvoice).catch(() => {})
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <Sheet title="Hóa đơn của bàn" onClose={onClose}>
       {error && <p className="customer-error">{error}</p>}
@@ -76,6 +97,9 @@ export default function InvoiceSheet({ tableId, onClose }: { tableId: number; on
         <div key={invoiceOrder.orderId} className="customer-order">
           <div className="customer-muted">
             Đơn #{invoiceOrder.orderId} · {new Date(invoiceOrder.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+            {invoiceOrder.items.some((orderItem) => orderItem.cancellable) && invoiceOrder.items.every((orderItem) => orderItem.cancellable || orderItem.status === "REJECTED" || orderItem.status === "RETURNED") && (
+              <button className="customer-danger" disabled={busyId === -invoiceOrder.orderId} onClick={() => cancelWholeOrder(invoiceOrder.orderId)}>Hủy cả đơn</button>
+            )}
           </div>
           {invoiceOrder.items.map((invoiceItem) => (
             <div key={invoiceItem.id} className={"customer-cartline" + (invoiceItem.status === "REJECTED" || invoiceItem.status === "RETURNED" ? " off" : "")}>

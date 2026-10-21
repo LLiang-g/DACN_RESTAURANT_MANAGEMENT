@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 // (chạy được cả khi truy cập qua IP LAN).
 export default defineConfig({
   plugins: [react()],
+  // sockjs-client cần biến global của Node; trong trình duyệt thay bằng globalThis
+  define: { global: 'globalThis' },
   server: {
     port: 5173,
     host: true,

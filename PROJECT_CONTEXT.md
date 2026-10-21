@@ -378,3 +378,9 @@ Nấu/Xong chỉ được với món **thuộc khu bếp của tài khoản đă
 - Frontend khách chạy cổng 5173; `vite.config.ts` PHẢI có proxy `/api`, `/ws` → 8080 (không dùng `changeOrigin`), nếu thiếu sẽ báo "Đã có lỗi xảy ra".
 - Dữ liệu cũ thừa nên xóa: `src/main/resources/sample-data/alter_order_item_status_cancelled.sql`, `customer_sample_data.sql`.
 - Còn lệch với ghi chú nhóm: hủy món hiện cho phép theo từng món; chưa đẩy WebSocket `/topic/pos|kds|table/{id}`.
+
+### Bổ sung Customer (son) — realtime & hủy đơn (21/10/2026)
+- `domain/service/TableEventPublisher`: đẩy tín hiệu STOMP sau khi commit — `/topic/table/{tableId}` (màn hình khách của bàn) và `/topic/pos` (`ORDER_PLACED`, `ORDER_CANCELLED_BY_CUSTOMER`, `CALL_STAFF`, kèm `tableId`). Phân hệ POS subscribe `/topic/pos` rồi tải lại danh sách.
+- **POS/KDS cần gọi `tableEventPublisher.publishTableChanged(tableId)` sau mỗi lần đổi trạng thái món** (duyệt/từ chối/trả món/phục vụ) để khách thấy tức thì. KDS (Nấu/Xong) đã gắn sẵn.
+- API mới: `POST /api/customer/tables/{tableId}/orders/{orderId}/cancel` — hủy cả Order, chỉ khi mọi món còn hiệu lực đều PENDING/CONFIRMED (đúng quy tắc mục 11). Hủy từng món vẫn giữ.
+- Frontend khách: `src/realtime/tableSocket.ts` (cần `npm install` vì thêm `@stomp/stompjs`, `sockjs-client`); tải định kỳ 15s chỉ là dự phòng.

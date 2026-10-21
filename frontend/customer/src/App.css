@@ -2,7 +2,9 @@
 .customer-center { display: grid; place-items: center; min-height: 100vh; padding: 24px; text-align: center; }
 .customer-header { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 16px; background: #c2410c; color: #fff; }
 .customer-header h1 { margin: 0; font-size: 20px; }
-.customer-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px; position: sticky; top: 0; background: #fff; border-bottom: 1px solid #e5e7eb; z-index: 5; }
+.customer-tabs { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #e5e7eb; z-index: 5; padding: 10px 12px 8px; }
+.customer-tabs-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 8px; }
+.customer-tabs-scroll::-webkit-scrollbar { display: none; }
 .customer-tabs button { flex: none; padding: 6px 14px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
 .customer-tabs button.active { background: #c2410c; border-color: #c2410c; color: #fff; }
 .customer-list { padding: 12px; display: grid; gap: 10px; }
@@ -48,3 +50,8 @@
 .customer-badge.DONE, .customer-badge.SERVED { background: #d1fae5; color: #065f46; }
 .customer-badge.REJECTED { background: #fee2e2; color: #991b1b; }
 .customer-badge.RETURNED { background: #f3e8ff; color: #6b21a8; }
+
+/* Thanh trượt danh mục tự vẽ: vạch mảnh, con trượt vuông màu cam, không có mũi tên */
+.customer-tabs-track { position: relative; height: 2px; background: #f1e4da; touch-action: none; }
+.customer-tabs-thumb { position: absolute; top: 0; height: 2px; background: #c2410c; border-radius: 0; cursor: grab; }
+.customer-tabs-thumb:active { cursor: grabbing; background: #9a3412; }

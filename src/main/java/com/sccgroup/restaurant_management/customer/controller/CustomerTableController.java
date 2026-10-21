@@ -35,6 +35,11 @@ public class CustomerTableController {
         return invoiceService.cancelItem(tableId, orderItemId);
     }
 
+    @PostMapping("/orders/{orderId}/cancel")
+    public InvoiceViewResponse cancelOrder(@PathVariable Long tableId, @PathVariable Long orderId) {
+        return invoiceService.cancelOrder(tableId, orderId);
+    }
+
     @PostMapping("/call-staff")
     public ResponseEntity<CallStaffResponse> callStaff(@PathVariable Long tableId) {
         return ResponseEntity.status(HttpStatus.CREATED).body(callStaffService.callStaff(tableId));

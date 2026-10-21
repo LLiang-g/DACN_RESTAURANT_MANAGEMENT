@@ -1,5 +1,6 @@
 package com.sccgroup.restaurant_management.customer.service;
 
+import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.customer.dto.OrderResponse;
@@ -89,6 +90,8 @@ public class CustomerOrderService {
     private final StockReservationService reservationService;
 
 
+    private final TableEventPublisher tableEventPublisher;
+
     public CustomerOrderService(RestaurantTableRepository tableRepository,
                                 InvoiceRepository invoiceRepository,
                                 InvoiceService invoiceService,
@@ -105,7 +108,9 @@ public class CustomerOrderService {
                                 IngredientRequirementCalculator requirementCalculator,
                                 ComboPriceCalculator comboPriceCalculator,
                                 IngredientRepository ingredientRepository,
-                                StockReservationService reservationService) {
+                                StockReservationService reservationService,
+                                TableEventPublisher tableEventPublisher) {
+        this.tableEventPublisher = tableEventPublisher;
         this.tableRepository = tableRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceService = invoiceService;
@@ -298,6 +303,8 @@ public class CustomerOrderService {
                     plannedCombo.saved.getId(), plannedCombo.combo.getId(), plannedCombo.combo.getName(), plannedCombo.quantity, plannedCombo.price));
         }
 
+        tableEventPublisher.publishPosEvent(TableEventPublisher.EVENT_ORDER_PLACED, table.getId());
+        tableEventPublisher.publishTableChanged(table.getId());
         return new OrderResponse(order.getId(), invoice.getId(), table.getId(), order.getCreatedAt(),
                 total, itemDtos, comboDtos);
     }

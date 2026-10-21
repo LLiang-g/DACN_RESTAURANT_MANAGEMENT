@@ -3,6 +3,7 @@ import { callStaff, getMenu, getTable, placeOrder } from "./api/api"
 import {
   addToCart, buildPayload, cartCount, cartTotal, changeQuantity, formatVnd, lineTotal, type CartLine,
 } from "./store/cart"
+import CategoryTabs from "./components/CategoryTabs"
 import InvoiceSheet from "./components/InvoiceSheet"
 import { ComboModal, FoodModal, Sheet } from "./components/Modals"
 import type { Menu, MenuCombo, MenuFood, OrderResult, TableInfo } from "./types/types"
@@ -100,13 +101,7 @@ export default function App() {
       </div>
       {staffMessage && <div className="customer-toast">{staffMessage}</div>}
 
-      <nav className="customer-tabs">
-        {tabs.map((tabItem) => (
-          <button key={tabItem.key} className={tabItem.key === tab ? "active" : ""} onClick={() => setActiveTab(tabItem.key)}>
-            {tabItem.label}
-          </button>
-        ))}
-      </nav>
+      <CategoryTabs tabs={tabs} activeKey={tab} onSelect={setActiveTab} />
 
       <main className="customer-list">
         {tab === COMBO_TAB

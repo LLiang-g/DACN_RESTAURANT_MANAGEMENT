@@ -1,5 +1,6 @@
 package com.sccgroup.restaurant_management.kds.service;
 
+import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.common.security.AppUserPrincipal;
@@ -38,13 +39,16 @@ public class KdsService {
     private final KdsEventPublisher eventPublisher;
     private final StockTransactionRepository stockTransactionRepository;
     private final ActivityLogRepository activityLogRepository;
+    private final TableEventPublisher tableEventPublisher;
 
     public KdsService(OrderItemRepository orderItemRepository,
                       KdsStockRepository stockRepository,
                       IngredientRequirementCalculator calculator,
                       KdsEventPublisher eventPublisher,
                       StockTransactionRepository stockTransactionRepository,
-                      ActivityLogRepository activityLogRepository) {
+                      ActivityLogRepository activityLogRepository,
+                      TableEventPublisher tableEventPublisher) {
+        this.tableEventPublisher = tableEventPublisher;
         this.orderItemRepository = orderItemRepository;
         this.stockRepository = stockRepository;
         this.calculator = calculator;
@@ -118,6 +122,7 @@ public class KdsService {
         }
         startItem(item, principal, LocalDateTime.now(), "START_COOKING");
         eventPublisher.publishChanged();
+        tableEventPublisher.publishTableChanged(item.getOrder().getInvoice().getTable().getId());
     }
 
     /** Chuyển một món sang đang nấu: trừ kho, đặt giờ bắt đầu, ghi log. Dùng chung cho bấm tay và tự động. */
@@ -194,6 +199,7 @@ public class KdsService {
             autoStartNextOrder(stationId, principal, now);
         }
         eventPublisher.publishChanged();
+        tableEventPublisher.publishTableChanged(item.getOrder().getInvoice().getTable().getId());
     }
 
     /**

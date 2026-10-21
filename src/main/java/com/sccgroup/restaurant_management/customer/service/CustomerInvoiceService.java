@@ -11,6 +11,7 @@ import com.sccgroup.restaurant_management.domain.entity.order.OrderItem;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemOption;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
+import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
 import com.sccgroup.restaurant_management.domain.repository.floor.CallStaffRequestRepository;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderComboRepository;
@@ -49,13 +50,16 @@ public class CustomerInvoiceService {
     private final OrderItemOptionRepository orderItemOptionRepository;
     private final OrderComboRepository orderComboRepository;
     private final CallStaffRequestRepository callStaffRequestRepository;
+    private final TableEventPublisher tableEventPublisher;
 
     public CustomerInvoiceService(RestaurantTableRepository tableRepository,
                                   InvoiceRepository invoiceRepository,
                                   OrderItemRepository orderItemRepository,
                                   OrderItemOptionRepository orderItemOptionRepository,
                                   OrderComboRepository orderComboRepository,
-                                  CallStaffRequestRepository callStaffRequestRepository) {
+                                  CallStaffRequestRepository callStaffRequestRepository,
+                                  TableEventPublisher tableEventPublisher) {
+        this.tableEventPublisher = tableEventPublisher;
         this.tableRepository = tableRepository;
         this.invoiceRepository = invoiceRepository;
         this.orderItemRepository = orderItemRepository;
@@ -177,7 +181,51 @@ public class CustomerInvoiceService {
 
         // Hết món hợp lệ thì hóa đơn KHÔNG đóng ngay, bàn vẫn SERVING: InvoiceAutoCancelService sẽ hủy
         // hóa đơn và trả bàn sau khoảng chờ nếu vẫn không có Order mới.
+        notifyCancelled(tableId);
         return getInvoice(tableId);
+    }
+
+    /**
+     * Khách hủy cả một Order (đặc tả: hủy được bất cứ lúc nào miễn món chưa "đang nấu").
+     * Chỉ hủy được khi MỌI món còn hiệu lực của Order đều là PENDING/CONFIRMED; nếu có món đã nấu thì từ chối cả đơn.
+     */
+    @Transactional
+    public InvoiceViewResponse cancelOrder(Long tableId, Long orderId) {
+        List<Long> tableIds = orderItemRepository.findTableIdsByOrderId(orderId);
+        if (tableIds.isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy đơn với ID " + orderId);
+        }
+        if (!tableIds.get(0).equals(tableId)) {
+            throw new BusinessException("Đơn này không thuộc bàn của bạn");
+        }
+        tableRepository.findByIdForUpdate(tableId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID " + tableId));
+
+        List<OrderItem> items = orderItemRepository.findByOrderIdForUpdate(orderId);
+        if (items.get(0).getOrder().getInvoice().getStatus() != InvoiceStatus.OPEN) {
+            throw new BusinessException("Hóa đơn đã thanh toán, không thể hủy đơn");
+        }
+        List<OrderItem> active = items.stream().filter(item -> !INACTIVE.contains(item.getStatus())).toList();
+        if (active.isEmpty()) {
+            throw new BusinessException("Đơn này đã được hủy hoặc từ chối trước đó");
+        }
+        for (OrderItem item : active) {
+            if (!CANCELLABLE.contains(item.getStatus())) {
+                throw new BusinessException("Bếp đã bắt đầu chế biến một số món trong đơn này, không thể hủy cả đơn");
+            }
+        }
+        for (OrderItem item : active) {
+            item.setStatus(OrderItemStatus.REJECTED);
+            item.setNote(CUSTOMER_CANCEL_NOTE);
+        }
+        notifyCancelled(tableId);
+        return getInvoice(tableId);
+    }
+
+    /** Báo lễ tân (để họ không bối rối khi đơn biến mất) và làm mới màn hình khách của bàn. */
+    private void notifyCancelled(Long tableId) {
+        tableEventPublisher.publishPosEvent(TableEventPublisher.EVENT_ORDER_CANCELLED_BY_CUSTOMER, tableId);
+        tableEventPublisher.publishTableChanged(tableId);
     }
 
     private void assertCancellable(OrderItem item) {

@@ -33,5 +33,8 @@ export const getInvoice = (tableId: number) => request<InvoiceView>(`/tables/${t
 export const cancelItem = (tableId: number, orderItemId: number) =>
   request<InvoiceView>(`/tables/${tableId}/order-items/${orderItemId}/cancel`, { method: "POST" })
 
+export const cancelOrder = (tableId: number, orderId: number) =>
+  request<InvoiceView>(`/tables/${tableId}/orders/${orderId}/cancel`, { method: "POST" })
+
 export const callStaff = (tableId: number) =>
   request<CallStaffResult>(`/tables/${tableId}/call-staff`, { method: "POST" })
