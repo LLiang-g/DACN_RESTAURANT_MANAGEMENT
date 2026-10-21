@@ -7,6 +7,8 @@ import com.sccgroup.restaurant_management.domain.service.InventoryService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/kds/order-items")
 public class KitchenCookingController {
@@ -14,8 +16,9 @@ public class KitchenCookingController {
     public KitchenCookingController(InventoryService inventoryService) { this.inventoryService = inventoryService; }
 
     @PostMapping("/{id}/start-cooking")
-    public OrderItem startCooking(@PathVariable Long id, Authentication authentication) {
+    public Map<String, Object> startCooking(@PathVariable Long id, Authentication authentication) {
         AppUserPrincipal principal = (AppUserPrincipal) authentication.getPrincipal();
-        return inventoryService.startCooking(id, principal.getAccountId(), AccountType.valueOf(principal.getAccountType()));
+        OrderItem item = inventoryService.startCooking(id, principal.getAccountId(), AccountType.valueOf(principal.getAccountType()));
+        return Map.of("id", item.getId(), "status", item.getStatus().name());
     }
 }
