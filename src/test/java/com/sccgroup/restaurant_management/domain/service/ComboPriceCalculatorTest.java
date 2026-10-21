@@ -22,9 +22,15 @@ class ComboPriceCalculatorTest {
     }
 
     @Test
-    void fixedDiscountValueIsComboPrice() {
-        Combo combo = new Combo("C", DiscountType.FIXED, new BigDecimal("75000"));
-        assertEquals(0, new BigDecimal("75000").compareTo(calculator.price(combo, items(combo))));
+    void fixedDiscountValueIsAmountSubtractedFromChildrenTotal() {
+        Combo combo = new Combo("C", DiscountType.FIXED, new BigDecimal("15000"));
+        assertEquals(0, new BigDecimal("75000").compareTo(calculator.price(combo, items(combo)))); // 90000 - 15000
+    }
+
+    @Test
+    void fixedDiscountLargerThanTotalGivesZeroNotNegative() {
+        Combo combo = new Combo("C", DiscountType.FIXED, new BigDecimal("999999"));
+        assertEquals(0, BigDecimal.ZERO.compareTo(calculator.price(combo, items(combo))));
     }
 
     @Test

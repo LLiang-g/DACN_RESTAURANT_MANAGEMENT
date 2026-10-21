@@ -335,7 +335,7 @@ Nấu/Xong chỉ được với món **thuộc khu bếp của tài khoản đă
 
 **Đơn vị và combo**
 - Đơn vị kho = đơn vị công thức (không quy đổi); dữ liệu mẫu đã dùng cùng đơn vị (ví dụ xuất 0,2 và 0,01 theo kg).
-- Combo `FIXED` = giá bán cố định của combo (`discountValue`); `PERCENT` = giảm theo % tổng giá món con.
+- Combo `FIXED` = SỐ TIỀN GIẢM trừ vào tổng giá món con (giá combo = Σ món − discountValue, tối thiểu 0); `PERCENT` = Σ × (1 − %/100), làm tròn đồng. (son đã sửa theo dữ liệu mẫu: order_combo #1 = 408000 − 40000 = 368000. Quy tắc cũ "FIXED = giá bán cố định" mâu thuẫn dữ liệu mẫu — CẦN NHÓM XÁC NHẬN lại.)
 
 
 ## 12. Cột DB quan trọng cho từng module
@@ -371,3 +371,10 @@ Nấu/Xong chỉ được với món **thuộc khu bếp của tài khoản đă
 - Số suất món hiển thị = giá trị nhỏ nhất của `floor(available / định lượng)` trên các nguyên liệu trong công thức.
 - Chỉ đúng khi chạy MỘT instance backend; mở rộng nhiều instance thì chuyển bộ đếm sang Redis.
 - Tùy chọn: sau mỗi lần giữ/hoàn chỗ, đẩy `/topic/menu` để các trang menu đang mở tự cập nhật.
+
+## Ghi chú phần Customer (son) — cập nhật 17/10/2026
+- API: `GET /api/customer/menu`, `POST /api/customer/orders`, `GET /api/customer/tables/{id}/invoice` (xem hóa đơn), `POST .../orders/items/{id}/cancel` (hủy món khi bếp chưa nấu → `REJECTED` + note "Khách tự hủy"), `POST .../call-staff` (gọi nhân viên).
+- SINGLE_CHOICE bắt buộc chọn 1 (server validate); có giữ chỗ nguyên liệu cho món PENDING/CONFIRMED ("còn N suất").
+- Frontend khách chạy cổng 5173; `vite.config.ts` PHẢI có proxy `/api`, `/ws` → 8080 (không dùng `changeOrigin`), nếu thiếu sẽ báo "Đã có lỗi xảy ra".
+- Dữ liệu cũ thừa nên xóa: `src/main/resources/sample-data/alter_order_item_status_cancelled.sql`, `customer_sample_data.sql`.
+- Còn lệch với ghi chú nhóm: hủy món hiện cho phép theo từng món; chưa đẩy WebSocket `/topic/pos|kds|table/{id}`.

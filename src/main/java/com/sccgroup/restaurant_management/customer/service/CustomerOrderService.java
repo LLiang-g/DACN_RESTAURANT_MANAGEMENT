@@ -267,7 +267,6 @@ public class CustomerOrderService {
         // ---- 4. Ghi DB ----
         LocalDateTime now = LocalDateTime.now();
 
-        // THAY BẰNG 1 dòng này:
         Invoice invoice = invoiceService.getOrCreateOpenInvoice(table);
 
         Order order = orderRepository.save(new Order(invoice, now));

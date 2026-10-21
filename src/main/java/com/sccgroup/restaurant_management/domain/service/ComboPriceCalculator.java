@@ -11,8 +11,12 @@ import java.util.Collection;
 
 /**
  * Tính giá combo. Bảng combo không có cột giá, giá được suy ra từ (discountType, discountValue):
- *  - FIXED   : discountValue chính là giá bán của combo ("nhập số tiền cụ thể")
+ *  - FIXED   : discountValue là SỐ TIỀN GIẢM, giá = tổng giá các món con − discountValue
  *  - PERCENT : giá = tổng giá các món con × (1 − discountValue/100), làm tròn đến đồng
+ *
+ * Quy ước này khớp dữ liệu mẫu của nhóm (sample_database_26_10_11.sql): combo "Lẩu Thái 4 Người" có tổng món
+ * 408.000, discount_value = 40.000 và order_combo.combo_price đã chốt = 368.000.
+ * Giá không bao giờ âm.
  */
 @Component
 public class ComboPriceCalculator {
@@ -36,7 +40,7 @@ public class ComboPriceCalculator {
         }
         BigDecimal price;
         if (combo.getDiscountType() == DiscountType.FIXED) {
-            price = value;
+            price = original.subtract(value);
         } else {
             BigDecimal factor = BigDecimal.ONE.subtract(value.divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP));
             price = original.multiply(factor);
