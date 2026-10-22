@@ -1,0 +1,11 @@
+.git
+.gitignore
+.gradle
+build
+.idea
+*.iml
+frontend/node_modules
+frontend/dist
+docker-compose.yml
+sample_database.26.7.10.sql
+test.html
