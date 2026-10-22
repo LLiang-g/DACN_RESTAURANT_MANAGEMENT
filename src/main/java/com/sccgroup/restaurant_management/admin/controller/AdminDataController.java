@@ -51,23 +51,23 @@ public class AdminDataController {
     }
 
     @GetMapping("/categories")
-    public List<Category> categories() {
+    public List<AdminDtos.CategoryResponse> categories() {
         return service.categories();
     }
 
     @GetMapping("/categories/{id}")
-    public Category category(@PathVariable Long id) {
-        return service.category(id);
+    public AdminDtos.CategoryResponse category(@PathVariable Long id) {
+        return service.categoryDto(id);
     }
 
     @PostMapping("/categories")
     @ResponseStatus(HttpStatus.CREATED)
-    public Category createCategory(@RequestBody AdminDtos.CategoryRequest r, Authentication a) {
+    public AdminDtos.CategoryResponse createCategory(@RequestBody AdminDtos.CategoryRequest r, Authentication a) {
         return service.createCategory(r, actor(a));
     }
 
     @PutMapping("/categories/{id}")
-    public Category updateCategory(@PathVariable Long id, @RequestBody AdminDtos.CategoryRequest r, Authentication a) {
+    public AdminDtos.CategoryResponse updateCategory(@PathVariable Long id, @RequestBody AdminDtos.CategoryRequest r, Authentication a) {
         return service.updateCategory(id, r, actor(a));
     }
 
@@ -78,23 +78,23 @@ public class AdminDataController {
     }
 
     @GetMapping("/foods")
-    public List<Food> foods() {
+    public List<AdminDtos.FoodResponse> foods() {
         return service.foods();
     }
 
     @GetMapping("/foods/{id}")
-    public Food food(@PathVariable Long id) {
-        return service.food(id);
+    public AdminDtos.FoodResponse food(@PathVariable Long id) {
+        return service.foodDto(id);
     }
 
     @PostMapping("/foods")
     @ResponseStatus(HttpStatus.CREATED)
-    public Food createFood(@RequestBody AdminDtos.FoodRequest r, Authentication a) {
+    public AdminDtos.FoodResponse createFood(@RequestBody AdminDtos.FoodRequest r, Authentication a) {
         return service.createFood(r, actor(a));
     }
 
     @PutMapping("/foods/{id}")
-    public Food updateFood(@PathVariable Long id, @RequestBody AdminDtos.FoodRequest r, Authentication a) {
+    public AdminDtos.FoodResponse updateFood(@PathVariable Long id, @RequestBody AdminDtos.FoodRequest r, Authentication a) {
         return service.updateFood(id, r, actor(a));
     }
 
@@ -132,18 +132,18 @@ public class AdminDataController {
     }
 
     @GetMapping("/foods/{foodId}/recipes")
-    public List<Recipe> recipes(@PathVariable Long foodId) {
+    public List<AdminDtos.RecipeResponse> recipes(@PathVariable Long foodId) {
         return service.recipes(foodId);
     }
 
     @PostMapping("/recipes")
     @ResponseStatus(HttpStatus.CREATED)
-    public Recipe createRecipe(@RequestBody AdminDtos.RecipeRequest r, Authentication a) {
+    public AdminDtos.RecipeResponse createRecipe(@RequestBody AdminDtos.RecipeRequest r, Authentication a) {
         return service.createRecipe(r, actor(a));
     }
 
     @PutMapping("/recipes/{id}")
-    public Recipe updateRecipe(@PathVariable Long id, @RequestBody AdminDtos.RecipeRequest r, Authentication a) {
+    public AdminDtos.RecipeResponse updateRecipe(@PathVariable Long id, @RequestBody AdminDtos.RecipeRequest r, Authentication a) {
         return service.updateRecipe(id, r, actor(a));
     }
 
@@ -154,13 +154,13 @@ public class AdminDataController {
     }
 
     @GetMapping("/stock-transactions")
-    public List<StockTransaction> stockTransactions() {
+    public List<AdminDtos.StockTransactionResponse> stockTransactions() {
         return service.stockTransactions();
     }
 
     @PostMapping("/stock-transactions")
     @ResponseStatus(HttpStatus.CREATED)
-    public StockTransaction createStockTransaction(@RequestBody AdminDtos.StockRequest r, Authentication a) {
+    public AdminDtos.StockTransactionResponse createStockTransaction(@RequestBody AdminDtos.StockRequest r, Authentication a) {
         return service.createStockTransaction(r, actor(a));
     }
 
@@ -192,23 +192,23 @@ public class AdminDataController {
     }
 
     @GetMapping("/options")
-    public List<Option> options() {
+    public List<AdminDtos.OptionResponse> options() {
         return service.options();
     }
 
     @GetMapping("/options/{id}")
-    public Option option(@PathVariable Long id) {
-        return service.option(id);
+    public AdminDtos.OptionResponse option(@PathVariable Long id) {
+        return service.optionDto(id);
     }
 
     @PostMapping("/options")
     @ResponseStatus(HttpStatus.CREATED)
-    public Option createOption(@RequestBody AdminDtos.OptionRequest r, Authentication a) {
+    public AdminDtos.OptionResponse createOption(@RequestBody AdminDtos.OptionRequest r, Authentication a) {
         return service.createOption(r, actor(a));
     }
 
     @PutMapping("/options/{id}")
-    public Option updateOption(@PathVariable Long id, @RequestBody AdminDtos.OptionRequest r, Authentication a) {
+    public AdminDtos.OptionResponse updateOption(@PathVariable Long id, @RequestBody AdminDtos.OptionRequest r, Authentication a) {
         return service.updateOption(id, r, actor(a));
     }
 
@@ -246,13 +246,13 @@ public class AdminDataController {
     }
 
     @GetMapping("/combos/{comboId}/items")
-    public List<ComboItem> comboItems(@PathVariable Long comboId) {
+    public List<AdminDtos.ComboItemResponse> comboItems(@PathVariable Long comboId) {
         return service.comboItems(comboId);
     }
 
     @PostMapping("/combos/{comboId}/items")
     @ResponseStatus(HttpStatus.CREATED)
-    public ComboItem addComboItem(@PathVariable Long comboId, @RequestBody AdminDtos.ComboItemRequest r, Authentication a) {
+    public AdminDtos.ComboItemResponse addComboItem(@PathVariable Long comboId, @RequestBody AdminDtos.ComboItemRequest r, Authentication a) {
         return service.addComboItem(comboId, r, actor(a));
     }
 

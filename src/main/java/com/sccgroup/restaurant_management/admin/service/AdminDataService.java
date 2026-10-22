@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Transactional
 public class AdminDataService {
     private final KitchenStationRepository stations;
     private final CategoryRepository categories;
@@ -95,30 +96,34 @@ public class AdminDataService {
         log(actor, "delete", "kitchen_station", id, null);
     }
 
-    public List<Category> categories() {
-        return categories.findAll();
+    public List<AdminDtos.CategoryResponse> categories() {
+        return categories.findAll().stream().map(AdminDtos::toCategory).toList();
     }
 
     public Category category(Long id) {
         return categories.findById(id).orElseThrow(() -> missing("Category", id));
     }
 
-    @Transactional
-    public Category createCategory(AdminDtos.CategoryRequest request, Actor actor) {
-        requireText(request.name(), "Category name");
-        Category saved = categories.save(new Category(request.name().trim(), station(request.stationId())));
-        log(actor, "create", "category", saved.getId(), saved.getName());
-        return saved;
+    public AdminDtos.CategoryResponse categoryDto(Long id) {
+        return AdminDtos.toCategory(category(id));
     }
 
     @Transactional
-    public Category updateCategory(Long id, AdminDtos.CategoryRequest request, Actor actor) {
+    public AdminDtos.CategoryResponse createCategory(AdminDtos.CategoryRequest request, Actor actor) {
+        requireText(request.name(), "Category name");
+        Category saved = categories.save(new Category(request.name().trim(), station(request.stationId())));
+        log(actor, "create", "category", saved.getId(), saved.getName());
+        return AdminDtos.toCategory(saved);
+    }
+
+    @Transactional
+    public AdminDtos.CategoryResponse updateCategory(Long id, AdminDtos.CategoryRequest request, Actor actor) {
         Category category = category(id);
         requireText(request.name(), "Category name");
         category.setName(request.name().trim());
         category.setKitchenStation(station(request.stationId()));
         log(actor, "update", "category", id, category.getName());
-        return categories.save(category);
+        return AdminDtos.toCategory(categories.save(category));
     }
 
     @Transactional
@@ -127,27 +132,31 @@ public class AdminDataService {
         log(actor, "delete", "category", id, null);
     }
 
-    public List<Food> foods() {
-        return foods.findAll();
+    public List<AdminDtos.FoodResponse> foods() {
+        return foods.findAll().stream().map(AdminDtos::toFood).toList();
     }
 
     public Food food(Long id) {
         return foods.findById(id).orElseThrow(() -> missing("Food", id));
     }
 
+    public AdminDtos.FoodResponse foodDto(Long id) {
+        return AdminDtos.toFood(food(id));
+    }
+
     @Transactional
-    public Food createFood(AdminDtos.FoodRequest request, Actor actor) {
+    public AdminDtos.FoodResponse createFood(AdminDtos.FoodRequest request, Actor actor) {
         validateFood(request);
         Food saved = foods.save(new Food(category(request.categoryId()), request.name().trim(), request.price()));
         saved.setImage(request.image());
         saved.setDescription(request.description());
         saved.setEstimatedCookingTime(request.estimatedCookingTime());
         log(actor, "create", "food", saved.getId(), saved.getName());
-        return saved;
+        return AdminDtos.toFood(saved);
     }
 
     @Transactional
-    public Food updateFood(Long id, AdminDtos.FoodRequest request, Actor actor) {
+    public AdminDtos.FoodResponse updateFood(Long id, AdminDtos.FoodRequest request, Actor actor) {
         validateFood(request);
         Food food = food(id);
         food.setCategory(category(request.categoryId()));
@@ -157,7 +166,7 @@ public class AdminDataService {
         food.setDescription(request.description());
         food.setEstimatedCookingTime(request.estimatedCookingTime());
         log(actor, "update", "food", id, food.getName());
-        return foods.save(food);
+        return AdminDtos.toFood(foods.save(food));
     }
 
     @Transactional
@@ -200,28 +209,28 @@ public class AdminDataService {
         log(actor, "delete", "ingredient", id, null);
     }
 
-    public List<Recipe> recipes(Long foodId) {
+    public List<AdminDtos.RecipeResponse> recipes(Long foodId) {
         food(foodId);
-        return recipes.findByFoodId(foodId);
+        return recipes.findByFoodId(foodId).stream().map(AdminDtos::toRecipe).toList();
     }
 
     @Transactional
-    public Recipe createRecipe(AdminDtos.RecipeRequest request, Actor actor) {
+    public AdminDtos.RecipeResponse createRecipe(AdminDtos.RecipeRequest request, Actor actor) {
         positive(request.quantityRequired(), "Recipe quantity");
         if (recipes.existsByFoodIdAndIngredientId(request.foodId(), request.ingredientId()))
             throw new BusinessException("Recipe already exists for this food and ingredient");
         Recipe saved = recipes.save(new Recipe(food(request.foodId()), ingredient(request.ingredientId()), request.quantityRequired()));
         log(actor, "create", "recipe", saved.getId(), null);
-        return saved;
+        return AdminDtos.toRecipe(saved);
     }
 
     @Transactional
-    public Recipe updateRecipe(Long id, AdminDtos.RecipeRequest request, Actor actor) {
+    public AdminDtos.RecipeResponse updateRecipe(Long id, AdminDtos.RecipeRequest request, Actor actor) {
         positive(request.quantityRequired(), "Recipe quantity");
         Recipe recipe = recipes.findById(id).orElseThrow(() -> missing("Recipe", id));
         recipe.setQuantityRequired(request.quantityRequired());
         log(actor, "update", "recipe", id, null);
-        return recipes.save(recipe);
+        return AdminDtos.toRecipe(recipes.save(recipe));
     }
 
     @Transactional
@@ -231,12 +240,12 @@ public class AdminDataService {
         log(actor, "delete", "recipe", id, null);
     }
 
-    public List<StockTransaction> stockTransactions() {
-        return stockTransactions.findAll();
+    public List<AdminDtos.StockTransactionResponse> stockTransactions() {
+        return stockTransactions.findAll().stream().map(AdminDtos::toStockTransaction).toList();
     }
 
     @Transactional
-    public StockTransaction createStockTransaction(AdminDtos.StockRequest request, Actor actor) {
+    public AdminDtos.StockTransactionResponse createStockTransaction(AdminDtos.StockRequest request, Actor actor) {
         positive(request.quantity(), "Stock quantity");
         Ingredient ingredient = ingredient(request.ingredientId());
         BigDecimal delta = switch (request.type()) {
@@ -250,7 +259,7 @@ public class AdminDataService {
         ingredients.save(ingredient);
         StockTransaction saved = stockTransactions.save(new StockTransaction(ingredient, request.type(), request.quantity(), request.note(), LocalDateTime.now()));
         log(actor, request.type().name().toLowerCase(), "ingredient", ingredient.getId(), request.note());
-        return saved;
+        return AdminDtos.toStockTransaction(saved);
     }
 
     public List<OptionGroup> optionGroups() {
@@ -285,24 +294,28 @@ public class AdminDataService {
         log(actor, "delete", "option_group", id, null);
     }
 
-    public List<Option> options() {
-        return options.findAll();
+    public List<AdminDtos.OptionResponse> options() {
+        return options.findAll().stream().map(AdminDtos::toOption).toList();
     }
 
     public Option option(Long id) {
         return options.findById(id).orElseThrow(() -> missing("Option", id));
     }
 
-    @Transactional
-    public Option createOption(AdminDtos.OptionRequest request, Actor actor) {
-        validateOption(request);
-        Option saved = options.save(optionEntity(request));
-        log(actor, "create", "option", saved.getId(), saved.getName());
-        return saved;
+    public AdminDtos.OptionResponse optionDto(Long id) {
+        return AdminDtos.toOption(option(id));
     }
 
     @Transactional
-    public Option updateOption(Long id, AdminDtos.OptionRequest request, Actor actor) {
+    public AdminDtos.OptionResponse createOption(AdminDtos.OptionRequest request, Actor actor) {
+        validateOption(request);
+        Option saved = options.save(optionEntity(request));
+        log(actor, "create", "option", saved.getId(), saved.getName());
+        return AdminDtos.toOption(saved);
+    }
+
+    @Transactional
+    public AdminDtos.OptionResponse updateOption(Long id, AdminDtos.OptionRequest request, Actor actor) {
         validateOption(request);
         Option item = option(id);
         item.setFood(food(request.foodId()));
@@ -315,7 +328,7 @@ public class AdminDataService {
         item.setPriceDelta(request.priceDelta());
         item.setScaleFactor(request.scaleFactor());
         log(actor, "update", "option", id, request.name());
-        return options.save(item);
+        return AdminDtos.toOption(options.save(item));
     }
 
     private Option optionEntity(AdminDtos.OptionRequest r) {
@@ -367,18 +380,18 @@ public class AdminDataService {
         log(actor, "delete", "combo", id, null);
     }
 
-    public List<ComboItem> comboItems(Long comboId) {
+    public List<AdminDtos.ComboItemResponse> comboItems(Long comboId) {
         combo(comboId);
-        return comboItems.findByComboId(comboId);
+        return comboItems.findByComboId(comboId).stream().map(AdminDtos::toComboItem).toList();
     }
 
     @Transactional
-    public ComboItem addComboItem(Long comboId, AdminDtos.ComboItemRequest request, Actor actor) {
+    public AdminDtos.ComboItemResponse addComboItem(Long comboId, AdminDtos.ComboItemRequest request, Actor actor) {
         if (request.quantity() == null || request.quantity() < 1)
             throw new BusinessException("Quantity must be positive");
         ComboItem item = comboItems.save(new ComboItem(combo(comboId), food(request.foodId()), request.quantity()));
         log(actor, "create", "combo_item", null, null);
-        return item;
+        return AdminDtos.toComboItem(item);
     }
 
     @Transactional
