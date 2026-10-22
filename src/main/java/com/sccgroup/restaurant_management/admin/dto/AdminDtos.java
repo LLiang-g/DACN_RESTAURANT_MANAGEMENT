@@ -68,7 +68,7 @@ public final class AdminDtos {
                                  String ingredientUnit, BigDecimal quantityRequired) {
     }
 
-    public record StockTransactionResponse(Long id, Long ingredientId, String ingredientName, StockTransactionType type,
+    public record StockTransactionResponse(Long id, Long ingredientId, String ingredientName, String ingredientUnit, StockTransactionType type,
                                            BigDecimal quantity, String note, LocalDateTime createdAt) {
     }
 
@@ -111,7 +111,7 @@ public final class AdminDtos {
         if (s == null) return null;
         Long ingId = s.getIngredient() != null ? s.getIngredient().getId() : null;
         String ingName = s.getIngredient() != null ? s.getIngredient().getName() : null;
-        return new StockTransactionResponse(s.getId(), ingId, ingName, s.getType(), s.getQuantity(), s.getNote(), s.getCreatedAt());
+        return new StockTransactionResponse(s.getId(), ingId, ingName, s.getIngredient() != null ? s.getIngredient().getUnit() : null, s.getType(), s.getQuantity(), s.getNote(), s.getCreatedAt());
     }
 
     public static OptionResponse toOption(Option o) {

@@ -8,7 +8,7 @@ import KitchenPage from "./pages/KitchenPage";
 import TablesPage from "./pages/TablesPage";
 import StaffPage from "./pages/StaffPage";
 import LoginPage from "./pages/LoginPage";
-import { getStoredAuth, setStoredAuth } from "./services/http";
+import { getStoredAuth, setStoredAuth, HttpError } from "./services/http";
 import { getAdminSession } from "./services/adminApi";
 import "./styles/admin.css";
 
@@ -51,7 +51,13 @@ export default function App() {
     if (getStoredAuth()) {
       getAdminSession()
         .then(() => { if (active) setIsAuthenticated(true); })
-        .catch(() => { if (active && getStoredAuth()) setSessionError(true); })
+        .catch(error => {
+          if (!active) return;
+          if (error instanceof HttpError && error.status === 403) {
+            setStoredAuth(null);
+            setIsAuthenticated(false);
+          } else if (getStoredAuth()) setSessionError(true);
+        })
         .finally(() => { if (active) setCheckingSession(false); });
     }
     return () => {

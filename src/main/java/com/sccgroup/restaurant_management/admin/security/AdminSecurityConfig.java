@@ -28,6 +28,7 @@ public class AdminSecurityConfig {
     SecurityFilterChain adminSecurityFilterChain(HttpSecurity http, JwtUtil jwt,
                                                 AdminStaffAccountRepository accounts) throws Exception {
         return http.securityMatcher("/api/admin/**")
+                .cors(org.springframework.security.config.Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth

@@ -1,3 +1,5 @@
+import { normalizeAdminDto } from "./adminDto";
+
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? "/api";
 export const TOKEN_KEY = "admin_auth_user";
 
@@ -54,11 +56,11 @@ export async function http<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep a concise error if a reverse proxy returns an HTML error page.
     }
-    if (!isLogin && (res.status === 401 || res.status === 403)) {
+    if (!isLogin && res.status === 401) {
       setStoredAuth(null);
       window.dispatchEvent(new Event("admin_auth_expired"));
     }
     throw new HttpError(res.status, message);
   }
-  return res.status === 204 ? undefined as T : await res.json() as T;
+  return res.status === 204 ? undefined as T : normalizeAdminDto(path, await res.json()) as T;
 }

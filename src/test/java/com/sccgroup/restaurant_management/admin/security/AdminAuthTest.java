@@ -9,7 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -32,10 +32,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringJUnitConfig(AdminAuthTest.Config.class)
 @WebAppConfiguration
 class AdminAuthTest {
-    @Configuration
+    @TestConfiguration
     @EnableWebMvc
     @EnableWebSecurity
-    @Import({AdminSecurityConfig.class, AdminAuthController.class})
+    @Import({AdminSecurityConfig.class, AdminAuthController.class, com.sccgroup.restaurant_management.config.CorsConfig.class})
     static class Config {
         @Bean AdminStaffAccountRepository accounts() { return mock(AdminStaffAccountRepository.class); }
         @Bean PasswordEncoder encoder() { return new BCryptPasswordEncoder(); }
@@ -111,6 +111,15 @@ class AdminAuthTest {
         String token = jwt.generateToken("admin.test", Map.of("accountType", "STAFF", "accountId", 99L));
         mvc.perform(get("/api/admin/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test void adminLoginSupportsFrontendCorsPreflight() throws Exception {
+        mvc.perform(options("/api/admin/auth/login")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
     }
 
     @Test void missingTokenReturns401() throws Exception {
