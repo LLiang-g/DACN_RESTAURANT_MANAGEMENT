@@ -28,6 +28,7 @@ export default function App() {
   const [result, setResult] = useState<OrderResult | null>(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [staffMessage, setStaffMessage] = useState<string | null>(null)
+  const [addedToastKey, setAddedToastKey] = useState(0) // đổi giá trị mỗi lần thêm để hiện lại thông báo
 
   useEffect(() => {
     if (!tableId) return
@@ -56,6 +57,7 @@ export default function App() {
     setCart((currentCart) => addToCart(currentCart, line))
     setFoodModal(null)
     setComboModal(null)
+    setAddedToastKey((previousKey) => previousKey + 1)
   }
 
   function refreshMenu() {
@@ -157,6 +159,8 @@ export default function App() {
         </button>
       )}
 
+      {addedToastKey > 0 && <div key={addedToastKey} className="customer-popup-toast">✓ Thêm thành công</div>}
+
       {foodModal && <FoodModal food={foodModal} onAdd={addLine} onClose={() => setFoodModal(null)} />}
       {comboModal && <ComboModal combo={comboModal} onAdd={addLine} onClose={() => setComboModal(null)} />}
 
@@ -197,7 +201,7 @@ export default function App() {
           <p>Đơn #{result.orderId} đang chờ lễ tân xác nhận.</p>
           <p className="customer-muted">Tạm tính: {formatVnd(result.totalAmount)}</p>
           <div className="customer-sheet-foot">
-            <button onClick={() => { setResult(null); setInvoiceOpen(true) }}>Xem hóa đơn</button>
+            <button className="customer-secondary" onClick={() => { setResult(null); setInvoiceOpen(true) }}>Xem hóa đơn</button>
             <button className="customer-primary" onClick={() => setResult(null)}>Gọi thêm món</button>
           </div>
         </Sheet>

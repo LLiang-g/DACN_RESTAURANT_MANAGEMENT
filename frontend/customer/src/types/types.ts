@@ -97,6 +97,7 @@ export interface InvoiceItem {
   cancelledByCustomer: boolean
   startedCookingAt: string | null
   estimatedCookingMinutes: number | null
+  remainingCookingSeconds: number | null
   comboOrderId: number | null
   optionNames: string[]
   cancellable: boolean

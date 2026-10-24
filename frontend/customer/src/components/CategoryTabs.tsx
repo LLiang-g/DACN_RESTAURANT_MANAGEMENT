@@ -6,8 +6,8 @@ interface CategoryTab {
 }
 
 /**
- * Thanh danh mục cuộn ngang. Thanh cuộn mặc định của trình duyệt bị ẩn,
- * thay bằng một vạch mảnh với con trượt vuông màu cam (kéo được, bấm vào vạch để nhảy tới).
+ * Thanh danh mục cuộn ngang một hàng. Thanh cuộn mặc định bị ẩn,
+ * thay bằng vạch mảnh có con trượt vuông màu cam (kéo được, bấm vào vạch để nhảy tới).
  */
 export default function CategoryTabs({ tabs, activeKey, onSelect }: {
   tabs: CategoryTab[]
@@ -39,23 +39,23 @@ export default function CategoryTabs({ tabs, activeKey, onSelect }: {
     return () => window.removeEventListener("resize", updateThumb)
   }, [updateThumb, tabs])
 
-  // Kéo con trượt: đổi vị trí chuột thành vị trí cuộn
-  function scrollToTrackPosition(clientX: number, thumbWidth: number) {
+  // Đổi vị trí chuột trên vạch thành vị trí cuộn
+  function scrollToTrackPosition(clientX: number) {
     const scroller = scrollRef.current
     const track = trackRef.current
     if (!scroller || !track) return
     const rect = track.getBoundingClientRect()
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left - thumbWidth / 2) / (rect.width - thumbWidth)))
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left - thumb.width / 2) / (rect.width - thumb.width)))
     scroller.scrollLeft = ratio * (scroller.scrollWidth - scroller.clientWidth)
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId)
-    scrollToTrackPosition(event.clientX, thumb.width)
+    scrollToTrackPosition(event.clientX)
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) scrollToTrackPosition(event.clientX, thumb.width)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) scrollToTrackPosition(event.clientX)
   }
 
   return (

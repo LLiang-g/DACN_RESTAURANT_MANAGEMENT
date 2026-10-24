@@ -114,6 +114,7 @@ public class CustomerInvoiceService {
                     orderItem.getStatus(), orderItem.getNote(),
                     orderItem.getStatus() == OrderItemStatus.REJECTED && CUSTOMER_CANCEL_NOTE.equals(orderItem.getNote()),
                     orderItem.getStartedCookingAt(), orderItem.getFood().getEstimatedCookingTime(),
+                    remainingCookingSeconds(orderItem),
                     orderItem.getOrderCombo() == null ? null : orderItem.getOrderCombo().getId(),
                     optionNames.getOrDefault(orderItem.getId(), List.of()),
                     CANCELLABLE.contains(orderItem.getStatus())));
@@ -226,6 +227,22 @@ public class CustomerInvoiceService {
     private void notifyCancelled(Long tableId) {
         tableEventPublisher.publishPosEvent(TableEventPublisher.EVENT_ORDER_CANCELLED_BY_CUSTOMER, tableId);
         tableEventPublisher.publishTableChanged(tableId);
+    }
+
+    /**
+     * Số giây còn lại của món đang nấu = thời gian chuẩn − thời gian đã nấu, kẹp trong [0, thời gian chuẩn].
+     * Kẹp để dữ liệu giờ lệch (vd. nhập tay vào DB, lệch múi giờ) không làm khách thấy hàng trăm phút.
+     */
+    private Integer remainingCookingSeconds(OrderItem item) {
+        Integer estimatedMinutes = item.getFood().getEstimatedCookingTime();
+        if (item.getStatus() != OrderItemStatus.COOKING || item.getStartedCookingAt() == null
+                || estimatedMinutes == null || estimatedMinutes <= 0) {
+            return null;
+        }
+        long totalSeconds = estimatedMinutes * 60L;
+        long elapsedSeconds = java.time.Duration.between(item.getStartedCookingAt(), LocalDateTime.now()).getSeconds();
+        long remaining = totalSeconds - Math.max(0, elapsedSeconds);
+        return (int) Math.max(0, Math.min(totalSeconds, remaining));
     }
 
     private void assertCancellable(OrderItem item) {

@@ -32,6 +32,7 @@ public record InvoiceViewResponse(
             boolean cancelledByCustomer,    // REJECTED do chính khách hủy
             LocalDateTime startedCookingAt, // khác null khi đã vào bếp
             Integer estimatedCookingMinutes,
+            Integer remainingCookingSeconds, // chỉ có khi đang nấu; tính theo đồng hồ server, luôn trong [0, thời gian chuẩn]
             Long comboOrderId,
             List<String> optionNames,
             boolean cancellable) {}
