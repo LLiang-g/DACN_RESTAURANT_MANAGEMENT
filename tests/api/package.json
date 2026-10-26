@@ -1,0 +1,11 @@
+{
+  "name": "smart-pos-api-tests",
+  "private": true,
+  "scripts": {
+    "up": "node run.cjs up",
+    "test": "node run.cjs test",
+    "verify": "node run.cjs all",
+    "down": "node run.cjs down"
+  },
+  "devDependencies": {"newman": "6.2.1"}
+}
