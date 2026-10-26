@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { cancelItem, cancelOrder, getInvoice } from "../api/api"
 import { connectTableSocket } from "../realtime/tableSocket"
 import { formatVnd } from "../store/cart"
-import { Sheet } from "./Modals"
 import type { InvoiceItem, InvoiceView, ItemStatus } from "../types/types"
 
 const STATUS_LABEL: Record<ItemStatus, string> = {
@@ -27,8 +26,8 @@ function remainingCookingText(invoiceItem: InvoiceItem, loadedAt: number, now: n
   return leftSeconds > 0 ? `Dự kiến còn ~${Math.ceil(leftSeconds / 60)} phút` : "Sắp xong, bếp đang hoàn thiện"
 }
 
-/** Hóa đơn đang mở của bàn: trạng thái từng món, tổng tạm tính, hủy món khi bếp chưa nấu. */
-export default function InvoiceSheet({ tableId, onClose }: { tableId: number; onClose: () => void }) {
+/** Trang hóa đơn đang mở của bàn (thay phần thực đơn): trạng thái từng món, tổng tạm tính, hủy món khi bếp chưa nấu. */
+export default function InvoicePage({ tableId }: { tableId: number }) {
   const [invoice, setInvoice] = useState<InvoiceView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -91,15 +90,16 @@ export default function InvoiceSheet({ tableId, onClose }: { tableId: number; on
   }
 
   return (
-    <Sheet title="Hóa đơn của bàn" onClose={onClose}>
+    <section className="customer-invoice-page">
+      <h2 className="customer-invoice-title">Hóa đơn của bàn</h2>
       {error && <p className="customer-error">{error}</p>}
       {!invoice && !error && <p className="customer-muted">Đang tải...</p>}
       {invoice && invoice.orders.length === 0 && <p className="customer-muted">Bạn chưa gọi món nào.</p>}
 
-      {invoice?.orders.map((invoiceOrder) => (
+      {invoice?.orders.slice().sort((a, b) => b.orderId - a.orderId).map((invoiceOrder) => (
         <div key={invoiceOrder.orderId} className="customer-order">
-          <div className="customer-muted">
-            Đơn #{invoiceOrder.orderId} · {new Date(invoiceOrder.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+          <div className="customer-order-head">
+            <span>Đơn #{invoiceOrder.orderId} · {new Date(invoiceOrder.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
             {invoiceOrder.items.some((orderItem) => orderItem.cancellable) && invoiceOrder.items.every((orderItem) => orderItem.cancellable || orderItem.status === "REJECTED" || orderItem.status === "RETURNED") && (
               <button className="customer-danger" disabled={busyId === -invoiceOrder.orderId} onClick={() => cancelWholeOrder(invoiceOrder.orderId)}>Hủy cả đơn</button>
             )}
@@ -132,11 +132,11 @@ export default function InvoiceSheet({ tableId, onClose }: { tableId: number; on
       ))}
 
       {invoice && invoice.orders.length > 0 && (
-        <div className="customer-sheet-foot">
+        <div className="customer-invoice-total">
           <b>Tạm tính: {formatVnd(invoice.totalAmount)}</b>
           <span className="customer-muted">Thanh toán tại quầy</span>
         </div>
       )}
-    </Sheet>
+    </section>
   )
 }
