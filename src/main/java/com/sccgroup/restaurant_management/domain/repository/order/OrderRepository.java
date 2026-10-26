@@ -21,4 +21,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         order by o.createdAt asc
         """)
     List<Order> findOrdersContainingItemStatus(@Param("status") OrderItemStatus status);
+
+    List<Order> findByInvoiceId(Long invoiceId);
 }

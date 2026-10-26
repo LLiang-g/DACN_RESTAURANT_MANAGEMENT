@@ -1,0 +1,396 @@
+/* ===== App shell ===== */
+.pos-dashboard {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+}
+
+/* ===== Tabs — segmented control ===== */
+.pos-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 28px;
+  padding: 4px;
+  background: #EEF1EE;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.pos-tabs button {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5B6864;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pos-tabs button.active {
+  background: #FFFFFF;
+  color: #175143;
+  box-shadow: 0 1px 2px rgba(31, 38, 36, 0.08);
+}
+
+.pos-tabs .badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-left: 7px;
+  border-radius: 999px;
+  background: #AE3B27;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.pos-tabs .logout-btn {
+  margin-left: auto;
+  color: #AE3B27;
+  background: transparent;
+}
+
+.pos-tabs .logout-btn:hover {
+  background: #F6E5E0;
+}
+
+/* ===== Table overview ===== */
+.table-overview section {
+  margin-bottom: 28px;
+}
+
+.table-overview h3 {
+  margin: 0 0 12px;
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5B6864;
+}
+
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+
+.table-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.table-card strong {
+  font-family: 'Sora', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.table-card span {
+  font-size: 12px;
+}
+
+/* Bàn trống: nhạt, lùi vào nền — không cần chú ý */
+.table-card.available {
+  background: #EEF1EE;
+  border-color: #DEE3DE;
+}
+.table-card.available strong { color: #5B6864; }
+.table-card.available span { color: #8A9490; }
+
+/* Bàn đang phục vụ: nổi bật — nơi lễ tân cần để ý */
+.table-card.serving {
+  background: #1E6F5C;
+  border-color: #175143;
+}
+.table-card.serving strong,
+.table-card.serving span { color: #FFFFFF; }
+.table-card.serving span { opacity: 0.85; }
+
+.table-card.clickable {
+  cursor: pointer;
+}
+.table-card.clickable:hover {
+  border-color: #0F3B30;
+}
+
+/* ===== Pending orders ===== */
+.pending-orders > p {
+  color: #5B6864;
+  font-size: 14px;
+}
+
+.order-card {
+  margin-bottom: 14px;
+  background: #FFFFFF;
+  border: 1px solid #E3E1D9;
+  border-left: 4px solid #1E6F5C;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Viền trái đổi màu theo thời gian đã chờ duyệt — là thông tin, không phải trang trí */
+.order-card.warm { border-left-color: #B9820F; }
+.order-card.urgent { border-left-color: #AE3B27; }
+
+.order-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #F9FAF8;
+  font-family: 'Sora', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.order-card header time {
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  color: #8A9490;
+  font-size: 12px;
+}
+
+.order-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.order-card li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid #F0EFE9;
+}
+
+.order-card .options {
+  font-size: 13px;
+  color: #5B6864;
+  margin-top: 2px;
+}
+
+.order-card .note {
+  font-size: 13px;
+  color: #B9820F;
+  margin-top: 2px;
+}
+
+.order-card .actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.order-card .actions button {
+  padding: 7px 12px;
+  border-radius: 7px;
+  border: 1px solid #DEE3DE;
+  background: #FFFFFF;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.order-card .actions button:first-child {
+  border-color: #1E6F5C;
+  color: #175143;
+}
+.order-card .actions button:first-child:hover {
+  background: #E1EFEA;
+}
+
+.order-card .actions button:last-child {
+  border-color: #AE3B27;
+  color: #AE3B27;
+}
+.order-card .actions button:last-child:hover {
+  background: #F6E5E0;
+}
+
+.order-card .actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===== Modal dùng chung ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 26, 24, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px;
+  width: 340px;
+}
+
+.modal h4 {
+  margin: 0 0 12px;
+  font-family: 'Sora', sans-serif;
+  font-size: 16px;
+}
+
+.modal textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid #DEE3DE;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-actions button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #DEE3DE;
+  background: #FFFFFF;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.modal-actions button:last-child:not(.cancel-invoice-btn) {
+  background: #AE3B27;
+  border-color: #AE3B27;
+  color: #fff;
+}
+
+.modal-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Invoice modal ===== */
+.invoice-modal {
+  width: 400px;
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+.invoice-items {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.invoice-items li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #F0EFE9;
+  font-size: 14px;
+}
+
+.item-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #EEF1EE;
+  color: #5B6864;
+}
+
+.invoice-total {
+  text-align: right;
+  margin: 14px 0 4px;
+  font-size: 15px;
+  padding-top: 10px;
+  border-top: 1px solid #E3E1D9;
+}
+
+.invoice-total strong {
+  font-family: 'Sora', sans-serif;
+  font-size: 18px;
+  color: #175143;
+}
+
+.invoice-warning {
+  color: #B9820F;
+  background: #FBF1D8;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 10px 0;
+}
+
+.payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.payment-form label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+
+.payment-form input:not([type='radio']) {
+  padding: 9px 10px;
+  border: 1px solid #DEE3DE;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.modal-actions .pay-btn {
+  background: #1E6F5C;
+  border-color: #1E6F5C;
+  color: #fff;
+}
+.modal-actions .pay-btn:disabled {
+  opacity: 0.45;
+}
+
+.modal-actions .cancel-invoice-btn {
+  margin-right: auto;
+  border-color: #AE3B27;
+  color: #AE3B27;
+  background: #fff;
+}
+
+.login-error {
+  margin: 0;
+  color: #AE3B27;
+  font-size: 13px;
+}
+
+.modal-actions .free-table-btn {
+  margin-right: auto;
+  border-color: #5B6864;
+  color: #5B6864;
+  background: #fff;
+}
+.modal-actions .free-table-btn:hover:not(:disabled) {
+  background: #EEF1EE;
+}

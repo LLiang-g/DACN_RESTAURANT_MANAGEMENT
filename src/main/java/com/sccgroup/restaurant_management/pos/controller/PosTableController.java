@@ -3,9 +3,7 @@ package com.sccgroup.restaurant_management.pos.controller;
 import com.sccgroup.restaurant_management.pos.dto.TableOverviewResponse;
 import com.sccgroup.restaurant_management.pos.service.PosTableService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -22,5 +20,11 @@ public class PosTableController {
     @GetMapping
     public ResponseEntity<List<TableOverviewResponse>> getTableOverview() {
         return ResponseEntity.ok(posTableService.getTableOverview());
+    }
+
+    @PatchMapping("/{id}/free")
+    public ResponseEntity<Void> freeTable(@PathVariable Long id) {
+        posTableService.freeTable(id);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -31,4 +31,15 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     where i.status = com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus.OPEN
     """)
     List<Invoice> findAllOpenWithTable();
+
+    @Query("select i from Invoice i join fetch i.table t where i.id = :id")
+    Optional<Invoice> findByIdWithTable(@Param("id") Long id);
+
+    @Query("""
+    select i from Invoice i
+    join fetch i.table t
+    where t.id in :tableIds
+    order by i.id desc
+    """)
+    List<Invoice> findLatestByTableIdsOrderByIdDesc(@Param("tableIds") List<Long> tableIds);
 }

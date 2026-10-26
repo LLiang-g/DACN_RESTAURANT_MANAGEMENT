@@ -384,3 +384,10 @@ Nấu/Xong chỉ được với món **thuộc khu bếp của tài khoản đă
 - **POS/KDS cần gọi `tableEventPublisher.publishTableChanged(tableId)` sau mỗi lần đổi trạng thái món** (duyệt/từ chối/trả món/phục vụ) để khách thấy tức thì. KDS (Nấu/Xong) đã gắn sẵn.
 - API mới: `POST /api/customer/tables/{tableId}/orders/{orderId}/cancel` — hủy cả Order, chỉ khi mọi món còn hiệu lực đều PENDING/CONFIRMED (đúng quy tắc mục 11). Hủy từng món vẫn giữ.
 - Frontend khách: `src/realtime/tableSocket.ts` (cần `npm install` vì thêm `@stomp/stompjs`, `sockjs-client`); tải định kỳ 15s chỉ là dự phòng.
+
+
+
+### Lưu ý trong phần POS
+2 điều cần bạn lưu ý, không phải lỗi nhưng là giới hạn có chủ đích của bản này:
+Chưa tính OrderCombo vào tổng tiền — calculateTotal hiện chỉ cộng OrderItem, vì entity OrderCombo chưa có repository/query riêng trong project (chưa ai trong nhóm làm tới). Nếu nhà hàng có bán combo và khách đã gọi combo, tổng tiền hiển thị sẽ thiếu phần đó. Đây là việc cần làm thêm khi bạn rảnh — báo mình, mình làm tiếp phần OrderComboRepository + gộp vào service này.
+Chưa khóa pessimistic (PESSIMISTIC_WRITE) khi thanh toán — khác với InvoiceService.getOrCreateOpenInvoice đã làm trước đây (có lock để tránh tạo trùng hóa đơn), hàm pay()/cancel() ở đây chưa có khóa tương tự. Rủi ro: nếu 2 lễ tân bấm “Thanh toán” cùng lúc cho cùng 1 hóa đơn (hiếm khi xảy ra với 1 quầy lễ tân, nhưng về lý thuyết có thể), có thể ghi đè dữ liệu amountReceived lẫn nhau. Mình tạm bỏ qua để giữ code đơn giản cho đồ án — nếu muốn làm chặt hơn, báo mình bổ sung theo đúng pattern đã dùng ở InvoiceService.

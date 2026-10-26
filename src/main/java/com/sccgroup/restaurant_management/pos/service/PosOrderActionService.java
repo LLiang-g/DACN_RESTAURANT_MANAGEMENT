@@ -19,10 +19,14 @@ public class PosOrderActionService {
     private final OrderItemRepository orderItemRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
 
+    private final TableReleaseService tableReleaseService;
+
     public PosOrderActionService(OrderItemRepository orderItemRepository,
-                                 RealtimeEventPublisher realtimeEventPublisher) {
+                                 RealtimeEventPublisher realtimeEventPublisher,
+                                 TableReleaseService tableReleaseService) {
         this.orderItemRepository = orderItemRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
+        this.tableReleaseService = tableReleaseService;
     }
 
     @Transactional
@@ -64,6 +68,7 @@ public class PosOrderActionService {
                 "/topic/table/" + tableId,
                 new OrderItemStatusEvent(item.getId(), tableId, "REJECTED", reason)
         );
+        tableReleaseService.releaseTableIfSettled(item.getOrder().getInvoice().getId());
     }
 
     private OrderItem getPendingItemOrThrow(Long orderItemId) {
@@ -96,6 +101,7 @@ public class PosOrderActionService {
                 "/topic/table/" + tableId,
                 new OrderItemStatusEvent(item.getId(), tableId, "SERVED", null)
         );
+        tableReleaseService.releaseTableIfSettled(item.getOrder().getInvoice().getId());
     }
 
     @Transactional
@@ -117,5 +123,6 @@ public class PosOrderActionService {
                 "/topic/table/" + tableId,
                 new OrderItemStatusEvent(item.getId(), tableId, "RETURNED", null)
         );
+        tableReleaseService.releaseTableIfSettled(item.getOrder().getInvoice().getId());
     }
 }
