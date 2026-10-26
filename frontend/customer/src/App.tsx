@@ -4,7 +4,8 @@ import {
   addToCart, buildPayload, cartCount, cartTotal, changeQuantity, formatVnd, lineTotal, type CartLine,
 } from "./store/cart"
 import CategoryTabs from "./components/CategoryTabs"
-import InvoiceSheet from "./components/InvoiceSheet"
+import InvoicePage from "./components/InvoicePage"
+import ScrollToTopButton from "./components/ScrollToTopButton"
 import { ComboModal, FoodModal, Sheet } from "./components/Modals"
 import type { Menu, MenuCombo, MenuFood, OrderResult, TableInfo } from "./types/types"
 import "./App.css"
@@ -28,6 +29,7 @@ export default function App() {
   const [result, setResult] = useState<OrderResult | null>(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [staffMessage, setStaffMessage] = useState<string | null>(null)
+  const [addedToastKey, setAddedToastKey] = useState(0) // đổi giá trị mỗi lần thêm để hiện lại thông báo
 
   useEffect(() => {
     if (!tableId) return
@@ -46,8 +48,9 @@ export default function App() {
   if (!menu || !table) return <div className="customer-center">Đang tải thực đơn...</div>
 
   const tabs = [
-    ...menu.categories.map((menuCategory) => ({ key: `c${menuCategory.id}`, label: menuCategory.name })),
     ...(menu.combos.length ? [{ key: COMBO_TAB, label: "Combo" }] : []),
+    ...menu.categories.map((menuCategory) => ({ key: `c${menuCategory.id}`, label: menuCategory.name })),
+
   ]
   const tab = activeTab || tabs[0]?.key
   const category = menu.categories.find((menuCategory) => `c${menuCategory.id}` === tab)
@@ -56,6 +59,7 @@ export default function App() {
     setCart((currentCart) => addToCart(currentCart, line))
     setFoodModal(null)
     setComboModal(null)
+    setAddedToastKey((previousKey) => previousKey + 1)
   }
 
   function refreshMenu() {
@@ -96,17 +100,27 @@ export default function App() {
         <span>Bàn {table.tableNumber} · {table.floor}</span>
       </header>
       <div className="customer-actions">
-        <button onClick={() => setInvoiceOpen(true)}>🧾 Hóa đơn</button>
+        {invoiceOpen && (
+            <button className="customer-back" aria-label="Quay lại thực đơn" onClick={() => { setInvoiceOpen(false); window.scrollTo(0, 0) }}>←</button>
+        )}
+        <button className={invoiceOpen ? "active" : ""} onClick={() => { setInvoiceOpen(true); window.scrollTo(0, 0) }}>🧾 Hóa đơn</button>
         <button onClick={onCallStaff}>🔔 Gọi nhân viên</button>
       </div>
       {staffMessage && <div className="customer-toast">{staffMessage}</div>}
 
-      <CategoryTabs tabs={tabs} activeKey={tab} onSelect={setActiveTab} />
-
+      {invoiceOpen ? (
+          <InvoicePage tableId={tableId} />
+      ) : (
+          <>
+          <CategoryTabs tabs={tabs} activeKey={tab} onSelect={setActiveTab} />
       <main className="customer-list">
         {tab === COMBO_TAB
           ? menu.combos.map((combo) => (
-              <div key={combo.id} className={"customer-card" + (combo.available ? "" : " off")}>
+                <div
+                    key={combo.id}
+                    className={"customer-card clickable" + (combo.available ? "" : " off")}
+                    onClick={() => combo.available && setComboModal(combo)}
+                >
                 <div className="customer-card-body">
                   <div className="customer-card-name">{combo.name}</div>
                   <div className="customer-muted">{combo.items.map((comboItem) => `${comboItem.quantity} ${comboItem.foodName}`).join(" + ")}</div>
@@ -115,14 +129,16 @@ export default function App() {
                     {combo.originalPrice > combo.price && <s className="customer-muted">{formatVnd(combo.originalPrice)} </s>}
                     <b>{formatVnd(combo.price)}</b>
                   </div>
+                  {!combo.available && <div className="customer-soldout">Tạm hết</div>}
                 </div>
-                <button disabled={!combo.available} onClick={() => setComboModal(combo)}>
-                  {combo.available ? "Chọn" : "Tạm hết"}
-                </button>
               </div>
             ))
           : category?.foods.map((food) => (
-              <div key={food.id} className={"customer-card" + (food.available ? "" : " off")}>
+                <div
+                    key={food.id}
+                    className={"customer-card clickable" + (food.available ? "" : " off")}
+                    onClick={() => food.available && setFoodModal(food)}
+                >
                 {food.image && <img src={food.image} alt={food.name} />}
                 <div className="customer-card-body">
                   <div className="customer-card-name">{food.name}</div>
@@ -132,35 +148,24 @@ export default function App() {
                     <b>{formatVnd(food.price)}</b>
                     {food.estimatedCookingTime != null && <span className="customer-muted"> · ~{food.estimatedCookingTime} phút</span>}
                   </div>
+                  {!food.available && <div className="customer-soldout">Tạm hết</div>}
                 </div>
-                <button
-                  disabled={!food.available}
-                  onClick={() =>
-                    food.hasOptions
-                      ? setFoodModal(food)
-                      : addLine({
-                          kind: "food", key: `f${food.id}:`, foodId: food.id, name: food.name,
-                          quantity: 1, unitPrice: food.price, optionIds: [], optionNames: [],
-                        })
-                  }
-                >
-                  {food.available ? (food.hasOptions ? "Chọn" : "Thêm") : "Tạm hết"}
-                </button>
               </div>
             ))}
       </main>
-
-      {cart.length > 0 && (
+      </>
+    )}
+      {cart.length > 0 && !invoiceOpen && (
         <button className="customer-cartbar" onClick={() => setCartOpen(true)}>
           <span>🛒 {cartCount(cart)} món</span>
           <span>{formatVnd(cartTotal(cart))}</span>
         </button>
       )}
 
+      {addedToastKey > 0 && <div key={addedToastKey} className="customer-popup-toast">✓ Thêm thành công</div>}
+
       {foodModal && <FoodModal food={foodModal} onAdd={addLine} onClose={() => setFoodModal(null)} />}
       {comboModal && <ComboModal combo={comboModal} onAdd={addLine} onClose={() => setComboModal(null)} />}
-
-      {invoiceOpen && <InvoiceSheet tableId={tableId} onClose={() => setInvoiceOpen(false)} />}
 
       {cartOpen && (
         <Sheet title="Đơn của bạn" onClose={() => setCartOpen(false)}>
@@ -197,11 +202,13 @@ export default function App() {
           <p>Đơn #{result.orderId} đang chờ lễ tân xác nhận.</p>
           <p className="customer-muted">Tạm tính: {formatVnd(result.totalAmount)}</p>
           <div className="customer-sheet-foot">
-            <button onClick={() => { setResult(null); setInvoiceOpen(true) }}>Xem hóa đơn</button>
+            <button className="customer-secondary" onClick={() => { setResult(null); setInvoiceOpen(true) }}>Xem hóa đơn</button>
             <button className="customer-primary" onClick={() => setResult(null)}>Gọi thêm món</button>
           </div>
         </Sheet>
       )}
+
+      <ScrollToTopButton />
     </div>
   )
 }
