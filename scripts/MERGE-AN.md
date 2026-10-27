@@ -7,7 +7,7 @@ Bản dự phòng trước merge: nhánh `codex/before-an-merge-20261022`, commi
 
 - Nhận DTO, transaction, CORS, tọa độ bàn, phản hồi bắt đầu nấu và sửa test hóa đơn từ An.
 - Giữ giao diện admin hiện tại, đăng nhập admin riêng, router, proxy Vite và cấu hình Docker/database hiện có.
-- `frontend/src/services/adminDto.ts` chuyển DTO phẳng của An sang cấu trúc mà giao diện đang dùng, áp dụng cho cả danh sách và phản hồi lưu.
+- `frontend/admin/src/services/adminDto.ts` chuyển DTO phẳng của An sang cấu trúc mà giao diện đang dùng, áp dụng cho cả danh sách và phản hồi lưu.
 - Giữ đơn vị nguyên liệu trong DTO lịch sử kho để giao diện không mất kg/lít/chai.
 - Bỏ lớp xử lý proxy JSON admin cũ: các DTO của An đã thay thế chức năng đó.
 - Lỗi 403 của một API không tự xóa phiên admin; lỗi 401 vẫn yêu cầu đăng nhập lại. Kiểm tra phiên `/auth/me` vẫn từ chối tài khoản mất quyền admin.
@@ -29,7 +29,7 @@ Bản dự phòng trước merge: nhánh `codex/before-an-merge-20261022`, commi
 ## Chạy lại
 
 - `docker compose up --build -d`
-- FE: `cd frontend`, `npm ci`, `npm run build`, `npm run test:admin` (Node 22.18+ hoặc 24).
+- FE: `cd frontend/admin`, `npm ci`, `npm run build`, `npm run test:admin` (Node 22.18+ hoặc 24).
 - Backend dùng database Docker: đặt SPRING_DATASOURCE_URL trỏ localhost:3307/smart_pos_kds rồi chạy Gradle test.
 
 Một số trang admin vẫn giữ fallback mock và cập nhật local từ trước; việc merge này chưa loại bỏ chúng. Chỉ phản hồi API thành công mới chứng minh thao tác được lưu vào DB.

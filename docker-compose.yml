@@ -43,7 +43,7 @@ services:
   # 3. Frontend React/Vite (Nginx host port 80 & reverse proxy /api sang backend)
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend/admin
       dockerfile: Dockerfile
     container_name: dacn08_frontend
     ports:
