@@ -4,6 +4,8 @@
 -- Based on Database.dbml
 -- ============================================================
 
+DROP DATABASE IF EXISTS `smart_pos_kds`;
+
 CREATE DATABASE IF NOT EXISTS `smart_pos_kds`
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `smart_pos_kds`;
@@ -16,14 +18,14 @@ DROP TABLE IF EXISTS `activity_log`;
 DROP TABLE IF EXISTS `order_item_option`;
 DROP TABLE IF EXISTS `order_item`;
 DROP TABLE IF EXISTS `order_combo`;
-DROP TABLE IF EXISTS `order`;
+DROP TABLE IF EXISTS `customer_order`;
 DROP TABLE IF EXISTS `invoice`;
-DROP TABLE IF EXISTS `table`;
+DROP TABLE IF EXISTS `restaurant_table`;
 DROP TABLE IF EXISTS `stock_transaction`;
 DROP TABLE IF EXISTS `recipe`;
 DROP TABLE IF EXISTS `combo_item`;
 DROP TABLE IF EXISTS `combo`;
-DROP TABLE IF EXISTS `option`;
+DROP TABLE IF EXISTS `food_option`;
 DROP TABLE IF EXISTS `option_group`;
 DROP TABLE IF EXISTS `food`;
 DROP TABLE IF EXISTS `category`;
@@ -33,34 +35,34 @@ DROP TABLE IF EXISTS `staff_account`;
 DROP TABLE IF EXISTS `kitchen_station`;
 
 CREATE TABLE `kitchen_station` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `staff_account` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `username` VARCHAR(255) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `role` ENUM('ADMIN','RECEPTIONIST') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `kitchen_account` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `username` VARCHAR(255) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
-  `station_id` INT NOT NULL,
+  `station_id` BIGINT NOT NULL,
   FOREIGN KEY (`station_id`) REFERENCES `kitchen_station`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `category` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
-  `station_id` INT NOT NULL,
+  `station_id` BIGINT NOT NULL,
   FOREIGN KEY (`station_id`) REFERENCES `kitchen_station`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `ingredient` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
   `unit` VARCHAR(50) NOT NULL,
   `stock_quantity` DECIMAL(12,3) NOT NULL DEFAULT 0,
@@ -68,8 +70,8 @@ CREATE TABLE `ingredient` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `food` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `category_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `category_id` BIGINT NOT NULL,
   `name` VARCHAR(255) NOT NULL,
   `price` DECIMAL(12,2) NOT NULL,
   `image` VARCHAR(500) NULL,
@@ -79,17 +81,17 @@ CREATE TABLE `food` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `option_group` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
   `selection_type` ENUM('SINGLE_CHOICE','MULTI_CHOICE') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE `option` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `food_id` INT NOT NULL,
+CREATE TABLE `food_option` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `food_id` BIGINT NOT NULL,
   `name` VARCHAR(255) NOT NULL,
-  `group_id` INT NOT NULL,
-  `ingredient_id` INT NULL,
+  `group_id` BIGINT NOT NULL,
+  `ingredient_id` BIGINT NULL,
   `adjust_amount` DECIMAL(12,3) NULL,
   `adjust_type` ENUM('ADD','REMOVE') NULL,
   `price_delta` DECIMAL(12,2) NULL,
@@ -100,15 +102,15 @@ CREATE TABLE `option` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `combo` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
   `discount_type` ENUM('FIXED','PERCENT') NOT NULL,
   `discount_value` DECIMAL(12,2) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `combo_item` (
-  `combo_id` INT NOT NULL,
-  `food_id` INT NOT NULL,
+  `combo_id` BIGINT NOT NULL,
+  `food_id` BIGINT NOT NULL,
   `quantity` INT NOT NULL,
   PRIMARY KEY (`combo_id`,`food_id`),
   FOREIGN KEY (`combo_id`) REFERENCES `combo`(`id`),
@@ -116,17 +118,17 @@ CREATE TABLE `combo_item` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `recipe` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `food_id` INT NOT NULL,
-  `ingredient_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `food_id` BIGINT NOT NULL,
+  `ingredient_id` BIGINT NOT NULL,
   `quantity_required` DECIMAL(12,3) NOT NULL,
   FOREIGN KEY (`food_id`) REFERENCES `food`(`id`),
   FOREIGN KEY (`ingredient_id`) REFERENCES `ingredient`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `stock_transaction` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `ingredient_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `ingredient_id` BIGINT NOT NULL,
   `type` ENUM('IMPORT','EXPORT','ADJUST') NOT NULL,
   `quantity` DECIMAL(12,3) NOT NULL,
   `note` VARCHAR(500) NULL,
@@ -134,18 +136,19 @@ CREATE TABLE `stock_transaction` (
   FOREIGN KEY (`ingredient_id`) REFERENCES `ingredient`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE `table` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE `restaurant_table` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `floor` VARCHAR(50) NOT NULL,
   `table_number` VARCHAR(50) NOT NULL,
-  `position` INT NOT NULL,
+  `position_x` INT NOT NULL,
+  `position_y` INT NOT NULL,
   `status` ENUM('AVAILABLE','SERVING') NOT NULL DEFAULT 'AVAILABLE',
   UNIQUE KEY `uq_table_floor_number` (`floor`,`table_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `invoice` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `table_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `table_id` BIGINT NOT NULL,
   `status` ENUM('OPEN','PAID','CANCELLED') NOT NULL,
   `payment_method` ENUM('CASH','BANK_TRANSFER') NULL,
   `amount_received` DECIMAL(12,2) NULL,
@@ -154,30 +157,30 @@ CREATE TABLE `invoice` (
   `opened_at` DATETIME NULL,
   `paid_at` DATETIME NULL,
   `cancelled_at` DATETIME NULL,
-  FOREIGN KEY (`table_id`) REFERENCES `table`(`id`)
+  FOREIGN KEY (`table_id`) REFERENCES `restaurant_table`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE `order` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `invoice_id` INT NOT NULL,
+CREATE TABLE `customer_order` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `invoice_id` BIGINT NOT NULL,
   `created_at` DATETIME NOT NULL,
   FOREIGN KEY (`invoice_id`) REFERENCES `invoice`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `order_combo` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `order_id` INT NOT NULL,
-  `combo_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `order_id` BIGINT NOT NULL,
+  `combo_id` BIGINT NOT NULL,
   `quantity` INT NOT NULL,
   `combo_price` DECIMAL(12,2) NOT NULL,
-  FOREIGN KEY (`order_id`) REFERENCES `order`(`id`),
+  FOREIGN KEY (`order_id`) REFERENCES `customer_order`(`id`),
   FOREIGN KEY (`combo_id`) REFERENCES `combo`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `order_item` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `order_id` INT NOT NULL,
-  `food_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `order_id` BIGINT NOT NULL,
+  `food_id` BIGINT NOT NULL,
   `quantity` INT NOT NULL,
   `status` ENUM('PENDING','CONFIRMED','REJECTED','COOKING','DONE','SERVED','RETURNED') NOT NULL,
   `note` VARCHAR(500) NULL,
@@ -186,8 +189,8 @@ CREATE TABLE `order_item` (
   `served_at` DATETIME NULL,
   `returned_at` DATETIME NULL,
   `unit_price` DECIMAL(12,2) NOT NULL,
-  `combo_order_id` INT NULL,
-  FOREIGN KEY (`order_id`) REFERENCES `order`(`id`),
+  `combo_order_id` BIGINT NULL,
+  FOREIGN KEY (`order_id`) REFERENCES `customer_order`(`id`),
   FOREIGN KEY (`food_id`) REFERENCES `food`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -196,31 +199,31 @@ ALTER TABLE `order_item`
   FOREIGN KEY (`combo_order_id`) REFERENCES `order_combo`(`id`);
 
 CREATE TABLE `order_item_option` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `order_item_id` INT NOT NULL,
-  `option_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `order_item_id` BIGINT NOT NULL,
+  `option_id` BIGINT NOT NULL,
   FOREIGN KEY (`order_item_id`) REFERENCES `order_item`(`id`),
-  FOREIGN KEY (`option_id`) REFERENCES `option`(`id`)
+  FOREIGN KEY (`option_id`) REFERENCES `food_option`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `activity_log` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `account_id` INT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `account_id` BIGINT NULL,
   `account_type` ENUM('STAFF','KITCHEN') NOT NULL,
   `action` VARCHAR(100) NOT NULL,
   `target_type` VARCHAR(100) NOT NULL,
-  `target_id` INT NULL,
+  `target_id` BIGINT NULL,
   `detail` VARCHAR(1000) NULL,
   `created_at` DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `call_staff_request` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `table_id` INT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `table_id` BIGINT NOT NULL,
   `created_at` DATETIME NOT NULL,
   `resolved_at` DATETIME NULL,
   `status` ENUM('PENDING','RESOLVED') NOT NULL,
-  FOREIGN KEY (`table_id`) REFERENCES `table`(`id`)
+  FOREIGN KEY (`table_id`) REFERENCES `restaurant_table`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
@@ -232,19 +235,17 @@ CREATE TABLE `call_staff_request` (
 
 INSERT INTO `kitchen_station` (`id`, `name`) VALUES
 (1, 'Bếp nóng'),
-(2, 'Bếp lạnh & món kèm'),
-(3, 'Bếp hải sản'),
-(4, 'Quầy nước'),
-(5, 'Bếp lẩu');
+(2, 'Bếp lạnh'),
+(3, 'Quầy nước');
 
 INSERT INTO `category` (`id`, `name`, `station_id`) VALUES
 (1, 'Món heo', 1),
-(2, 'Hải sản', 3),
+(2, 'Hải sản', 1),
 (3, 'Món bò', 1),
 (4, 'Món gà', 1),
-(5, 'Món lẩu', 5),
+(5, 'Món lẩu', 1),
 (6, 'Món ăn kèm', 2),
-(7, 'Đồ uống', 4);
+(7, 'Đồ uống', 3);
 
 INSERT INTO `food` (`id`, `category_id`, `name`, `price`, `image`, `description`, `estimated_cooking_time`) VALUES
 (1, 1, 'Heo mọi nướng ống tre', 159000, NULL, 'Món mẫu cho hệ thống Smart POS - Heo mọi nướng ống tre', 15),
@@ -833,7 +834,7 @@ INSERT INTO `option_group` (`id`, `name`, `selection_type`) VALUES
 (2, 'Topping', 'MULTI_CHOICE'),
 (3, 'Độ cay', 'SINGLE_CHOICE');
 
-INSERT INTO `option` (`id`, `food_id`, `name`, `group_id`, `ingredient_id`, `adjust_amount`, `adjust_type`, `price_delta`, `scale_factor`) VALUES
+INSERT INTO `food_option` (`id`, `food_id`, `name`, `group_id`, `ingredient_id`, `adjust_amount`, `adjust_type`, `price_delta`, `scale_factor`) VALUES
 (1, 1, 'Thêm phần', 2, 1, 0.08, 'ADD', 30000, NULL),
 (2, 4, 'Thêm phần', 2, 1, 0.08, 'ADD', 30000, NULL),
 (3, 11, 'Thêm phần', 2, 1, 0.08, 'ADD', 30000, NULL),
@@ -904,83 +905,81 @@ INSERT INTO `combo_item` (`combo_id`, `food_id`, `quantity`) VALUES
 (5, 55, 1),
 (5, 84, 1);
 
-INSERT INTO `table` (`id`, `floor`, `table_number`, `status`) VALUES
-(1, 'Tầng 1', 'B01', 'AVAILABLE'),
-(2, 'Tầng 1', 'B02', 'AVAILABLE'),
-(3, 'Tầng 1', 'B03', 'AVAILABLE'),
-(4, 'Tầng 1', 'B04', 'AVAILABLE'),
-(5, 'Tầng 1', 'B05', 'AVAILABLE'),
-(6, 'Tầng 1', 'B06', 'AVAILABLE'),
-(7, 'Tầng 1', 'B07', 'AVAILABLE'),
-(8, 'Tầng 1', 'B08', 'AVAILABLE'),
-(9, 'Tầng 1', 'B09', 'AVAILABLE'),
-(10, 'Tầng 1', 'B10', 'AVAILABLE'),
-(11, 'Tầng 1', 'B11', 'AVAILABLE'),
-(12, 'Tầng 1', 'B12', 'AVAILABLE'),
-(13, 'Tầng 1', 'B13', 'AVAILABLE'),
-(14, 'Tầng 1', 'B14', 'AVAILABLE'),
-(15, 'Tầng 1', 'B15', 'AVAILABLE'),
-(16, 'Tầng 1', 'B16', 'AVAILABLE'),
-(17, 'Tầng 1', 'B17', 'AVAILABLE'),
-(18, 'Tầng 1', 'B18', 'AVAILABLE'),
-(19, 'Tầng 1', 'B19', 'AVAILABLE'),
-(20, 'Tầng 1', 'B20', 'AVAILABLE'),
-(21, 'Tầng 2', 'B01', 'AVAILABLE'),
-(22, 'Tầng 2', 'B02', 'AVAILABLE'),
-(23, 'Tầng 2', 'B03', 'AVAILABLE'),
-(24, 'Tầng 2', 'B04', 'AVAILABLE'),
-(25, 'Tầng 2', 'B05', 'AVAILABLE'),
-(26, 'Tầng 2', 'B06', 'AVAILABLE'),
-(27, 'Tầng 2', 'B07', 'AVAILABLE'),
-(28, 'Tầng 2', 'B08', 'AVAILABLE'),
-(29, 'Tầng 2', 'B09', 'AVAILABLE'),
-(30, 'Tầng 2', 'B10', 'AVAILABLE'),
-(31, 'Tầng 2', 'B11', 'AVAILABLE'),
-(32, 'Tầng 2', 'B12', 'AVAILABLE'),
-(33, 'Tầng 2', 'B13', 'AVAILABLE'),
-(34, 'Tầng 2', 'B14', 'AVAILABLE'),
-(35, 'Tầng 2', 'B15', 'AVAILABLE'),
-(36, 'Tầng 2', 'B16', 'AVAILABLE'),
-(37, 'Tầng 2', 'B17', 'AVAILABLE'),
-(38, 'Tầng 2', 'B18', 'AVAILABLE'),
-(39, 'Tầng 2', 'B19', 'AVAILABLE'),
-(40, 'Tầng 2', 'B20', 'AVAILABLE'),
-(41, 'Tầng 3', 'B01', 'AVAILABLE'),
-(42, 'Tầng 3', 'B02', 'AVAILABLE'),
-(43, 'Tầng 3', 'B03', 'AVAILABLE'),
-(44, 'Tầng 3', 'B04', 'AVAILABLE'),
-(45, 'Tầng 3', 'B05', 'AVAILABLE'),
-(46, 'Tầng 3', 'B06', 'AVAILABLE'),
-(47, 'Tầng 3', 'B07', 'AVAILABLE'),
-(48, 'Tầng 3', 'B08', 'AVAILABLE'),
-(49, 'Tầng 3', 'B09', 'AVAILABLE'),
-(50, 'Tầng 3', 'B10', 'AVAILABLE'),
-(51, 'Tầng 3', 'B11', 'AVAILABLE'),
-(52, 'Tầng 3', 'B12', 'AVAILABLE'),
-(53, 'Tầng 3', 'B13', 'AVAILABLE'),
-(54, 'Tầng 3', 'B14', 'AVAILABLE'),
-(55, 'Tầng 3', 'B15', 'AVAILABLE'),
-(56, 'Tầng 3', 'B16', 'AVAILABLE'),
-(57, 'Tầng 3', 'B17', 'AVAILABLE'),
-(58, 'Tầng 3', 'B18', 'AVAILABLE'),
-(59, 'Tầng 3', 'B19', 'AVAILABLE'),
-(60, 'Tầng 3', 'B20', 'AVAILABLE');
+INSERT INTO `restaurant_table` (`id`, `floor`, `table_number`, `position_x`, `position_y`, `status`) VALUES
+(1, 'Tầng 1', 'B01', 2, 2, 'AVAILABLE'),
+(2, 'Tầng 1', 'B02', 6, 2, 'AVAILABLE'),
+(3, 'Tầng 1', 'B03', 10, 2, 'AVAILABLE'),
+(4, 'Tầng 1', 'B04', 14, 2, 'AVAILABLE'),
+(5, 'Tầng 1', 'B05', 18, 2, 'AVAILABLE'),
+(6, 'Tầng 1', 'B06', 2, 6, 'AVAILABLE'),
+(7, 'Tầng 1', 'B07', 6, 6, 'AVAILABLE'),
+(8, 'Tầng 1', 'B08', 10, 6, 'AVAILABLE'),
+(9, 'Tầng 1', 'B09', 14, 6, 'AVAILABLE'),
+(10, 'Tầng 1', 'B10', 18, 6, 'AVAILABLE'),
+(11, 'Tầng 1', 'B11', 2, 10, 'AVAILABLE'),
+(12, 'Tầng 1', 'B12', 6, 10, 'AVAILABLE'),
+(13, 'Tầng 1', 'B13', 10, 10, 'AVAILABLE'),
+(14, 'Tầng 1', 'B14', 14, 10, 'AVAILABLE'),
+(15, 'Tầng 1', 'B15', 18, 10, 'AVAILABLE'),
+(16, 'Tầng 1', 'B16', 2, 14, 'AVAILABLE'),
+(17, 'Tầng 1', 'B17', 6, 14, 'AVAILABLE'),
+(18, 'Tầng 1', 'B18', 10, 14, 'AVAILABLE'),
+(19, 'Tầng 1', 'B19', 14, 14, 'AVAILABLE'),
+(20, 'Tầng 1', 'B20', 18, 14, 'AVAILABLE'),
+(21, 'Tầng 2', 'B01', 2, 2, 'AVAILABLE'),
+(22, 'Tầng 2', 'B02', 6, 2, 'AVAILABLE'),
+(23, 'Tầng 2', 'B03', 10, 2, 'AVAILABLE'),
+(24, 'Tầng 2', 'B04', 14, 2, 'AVAILABLE'),
+(25, 'Tầng 2', 'B05', 18, 2, 'AVAILABLE'),
+(26, 'Tầng 2', 'B06', 2, 6, 'AVAILABLE'),
+(27, 'Tầng 2', 'B07', 6, 6, 'AVAILABLE'),
+(28, 'Tầng 2', 'B08', 10, 6, 'AVAILABLE'),
+(29, 'Tầng 2', 'B09', 14, 6, 'AVAILABLE'),
+(30, 'Tầng 2', 'B10', 18, 6, 'AVAILABLE'),
+(31, 'Tầng 2', 'B11', 2, 10, 'AVAILABLE'),
+(32, 'Tầng 2', 'B12', 6, 10, 'AVAILABLE'),
+(33, 'Tầng 2', 'B13', 10, 10, 'AVAILABLE'),
+(34, 'Tầng 2', 'B14', 14, 10, 'AVAILABLE'),
+(35, 'Tầng 2', 'B15', 18, 10, 'AVAILABLE'),
+(36, 'Tầng 2', 'B16', 2, 14, 'AVAILABLE'),
+(37, 'Tầng 2', 'B17', 6, 14, 'AVAILABLE'),
+(38, 'Tầng 2', 'B18', 10, 14, 'AVAILABLE'),
+(39, 'Tầng 2', 'B19', 14, 14, 'AVAILABLE'),
+(40, 'Tầng 2', 'B20', 18, 14, 'AVAILABLE'),
+(41, 'Tầng 3', 'B01', 2, 2, 'AVAILABLE'),
+(42, 'Tầng 3', 'B02', 6, 2, 'AVAILABLE'),
+(43, 'Tầng 3', 'B03', 10, 2, 'AVAILABLE'),
+(44, 'Tầng 3', 'B04', 14, 2, 'AVAILABLE'),
+(45, 'Tầng 3', 'B05', 18, 2, 'AVAILABLE'),
+(46, 'Tầng 3', 'B06', 2, 6, 'AVAILABLE'),
+(47, 'Tầng 3', 'B07', 6, 6, 'AVAILABLE'),
+(48, 'Tầng 3', 'B08', 10, 6, 'AVAILABLE'),
+(49, 'Tầng 3', 'B09', 14, 6, 'AVAILABLE'),
+(50, 'Tầng 3', 'B10', 18, 6, 'AVAILABLE'),
+(51, 'Tầng 3', 'B11', 2, 10, 'AVAILABLE'),
+(52, 'Tầng 3', 'B12', 6, 10, 'AVAILABLE'),
+(53, 'Tầng 3', 'B13', 10, 10, 'AVAILABLE'),
+(54, 'Tầng 3', 'B14', 14, 10, 'AVAILABLE'),
+(55, 'Tầng 3', 'B15', 18, 10, 'AVAILABLE'),
+(56, 'Tầng 3', 'B16', 2, 14, 'AVAILABLE'),
+(57, 'Tầng 3', 'B17', 6, 14, 'AVAILABLE'),
+(58, 'Tầng 3', 'B18', 10, 14, 'AVAILABLE'),
+(59, 'Tầng 3', 'B19', 14, 14, 'AVAILABLE'),
+(60, 'Tầng 3', 'B20', 18, 14, 'AVAILABLE');
 
-UPDATE `table`
+UPDATE `restaurant_table`
 SET `status` = 'SERVING'
 WHERE `id` IN (42);
 
 INSERT INTO `staff_account` (`id`, `username`, `password_hash`, `role`) VALUES
-(1, 'ADMIN', '$2b$12$DEMO_HASH_ADMIN', 'ADMIN'),
-(2, 'letan01', '$2b$12$DEMO_HASH_LETAN01', 'RECEPTIONIST'),
-(3, 'letan02', '$2b$12$DEMO_HASH_LETAN02', 'RECEPTIONIST');
+(1, 'ADMIN', '$2b$12$2rfo7fbmZuNPRcBu01IzS.00cnKBJPqpRV0T2.0FFlSQQTkX6uGdO', 'ADMIN'),
+(2, 'letan1', '$2b$12$2rfo7fbmZuNPRcBu01IzS.00cnKBJPqpRV0T2.0FFlSQQTkX6uGdO', 'RECEPTIONIST'),
+(3, 'letan2', '$2b$12$2rfo7fbmZuNPRcBu01IzS.00cnKBJPqpRV0T2.0FFlSQQTkX6uGdO', 'RECEPTIONIST');
 
 INSERT INTO `kitchen_account` (`id`, `username`, `password_hash`, `station_id`) VALUES
-(1, 'bepnong01', '$2b$12$DEMO_HASH_KITCHEN01', 1),
-(2, 'bepcold01', '$2b$12$DEMO_HASH_KITCHEN02', 2),
-(3, 'bephaisan01', '$2b$12$DEMO_HASH_KITCHEN03', 3),
-(4, 'quaynuoc01', '$2b$12$DEMO_HASH_KITCHEN04', 4),
-(5, 'beplau01', '$2b$12$DEMO_HASH_KITCHEN05', 5);
+(1, 'bepnong', '$2b$12$2rfo7fbmZuNPRcBu01IzS.00cnKBJPqpRV0T2.0FFlSQQTkX6uGdO', 1),
+(2, 'beplanh', '$2b$12$2rfo7fbmZuNPRcBu01IzS.00cnKBJPqpRV0T2.0FFlSQQTkX6uGdO', 2),
+(3, 'quaynuoc', '$2b$12$2rfo7fbmZuNPRcBu01IzS.00cnKBJPqpRV0T2.0FFlSQQTkX6uGdO', 3);
 
 INSERT INTO `stock_transaction` (`id`, `ingredient_id`, `type`, `quantity`, `note`, `created_at`) VALUES
 (1, 1, 'IMPORT', 35, 'Nhập kho đầu kỳ cho Thịt heo', '2026-10-01 08:00:00'),
@@ -1090,7 +1089,7 @@ INSERT INTO `invoice` (`id`, `table_id`, `status`, `payment_method`, `amount_rec
 (3, 42, 'OPEN', NULL, NULL, NULL, NULL, '2026-10-02 18:45:00', NULL, NULL),
 (4, 7, 'CANCELLED', NULL, NULL, NULL, NULL, '2026-10-02 19:15:00', NULL, '2026-10-02 19:40:00');
 
-INSERT INTO `order` (`id`, `invoice_id`, `created_at`) VALUES
+INSERT INTO `customer_order` (`id`, `invoice_id`, `created_at`) VALUES
 (1, 1, '2026-10-02 10:20:00'),
 (2, 1, '2026-10-02 11:00:00'),
 (3, 2, '2026-10-02 18:10:00'),
