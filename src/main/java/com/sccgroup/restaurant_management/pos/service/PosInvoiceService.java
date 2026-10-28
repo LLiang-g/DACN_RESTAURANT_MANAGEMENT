@@ -161,12 +161,8 @@ public class PosInvoiceService {
         List<InvoiceComboItemResponse> childDtos = children.stream()
                 .map(oi -> new InvoiceComboItemResponse(oi.getFood().getName(), oi.getQuantity(), oi.getStatus().name()))
                 .toList();
-        BigDecimal base = combo.getComboPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
-        BigDecimal surcharge = children.stream()
-                .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new InvoiceComboResponse(combo.getId(), combo.getCombo().getName(), combo.getQuantity(),
-                combo.getComboPrice(), base.add(surcharge), childDtos);
+                combo.getComboPrice(), comboLineTotal(combo, children), childDtos);
     }
 
     private BigDecimal calculateTotal(List<OrderItem> items, List<OrderCombo> combos) {
@@ -180,21 +176,33 @@ public class PosInvoiceService {
 
         BigDecimal comboTotal = combos.stream()
                 .filter(combo -> isComboBillable(childrenByComboId.getOrDefault(combo.getId(), List.of())))
-                .map(combo -> {
-                    List<OrderItem> children = childrenByComboId.getOrDefault(combo.getId(), List.of());
-                    BigDecimal base = combo.getComboPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
-                    BigDecimal surcharge = children.stream()
-                            .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    return base.add(surcharge);
-                })
+                .map(combo -> comboLineTotal(combo, childrenByComboId.getOrDefault(combo.getId(), List.of())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return itemTotal.add(comboTotal);
     }
 
     private boolean isComboBillable(List<OrderItem> children) {
-        return !children.isEmpty() && children.stream().allMatch(this::isBillable);
+        return !children.isEmpty() && children.stream().noneMatch(oi -> oi.getStatus() == OrderItemStatus.PENDING);
+    }
+
+    private BigDecimal comboLineTotal(OrderCombo combo, List<OrderItem> children) {
+        BigDecimal base = combo.getComboPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
+
+        // Món bị hủy trong combo: trừ giá bán lẻ hiện tại của món đó ra khỏi giá combo
+        BigDecimal rejectedDeduction = children.stream()
+                .filter(oi -> oi.getStatus() == OrderItemStatus.REJECTED || oi.getStatus() == OrderItemStatus.RETURNED)
+                .map(oi -> oi.getFood().getPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Phụ thu option của các món còn billable (không tính phụ thu của món đã bị hủy)
+        BigDecimal surcharge = children.stream()
+                .filter(this::isBillable)
+                .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal adjustedBase = base.subtract(rejectedDeduction).max(BigDecimal.ZERO);
+        return adjustedBase.add(surcharge);
     }
 
     private boolean isBillable(OrderItem item) {

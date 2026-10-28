@@ -389,5 +389,11 @@ Nấu/Xong chỉ được với món **thuộc khu bếp của tài khoản đă
 
 ### Lưu ý trong phần POS
 2 điều cần bạn lưu ý, không phải lỗi nhưng là giới hạn có chủ đích của bản này:
-Chưa tính OrderCombo vào tổng tiền — calculateTotal hiện chỉ cộng OrderItem, vì entity OrderCombo chưa có repository/query riêng trong project (chưa ai trong nhóm làm tới). Nếu nhà hàng có bán combo và khách đã gọi combo, tổng tiền hiển thị sẽ thiếu phần đó. Đây là việc cần làm thêm khi bạn rảnh — báo mình, mình làm tiếp phần OrderComboRepository + gộp vào service này.
-Chưa khóa pessimistic (PESSIMISTIC_WRITE) khi thanh toán — khác với InvoiceService.getOrCreateOpenInvoice đã làm trước đây (có lock để tránh tạo trùng hóa đơn), hàm pay()/cancel() ở đây chưa có khóa tương tự. Rủi ro: nếu 2 lễ tân bấm “Thanh toán” cùng lúc cho cùng 1 hóa đơn (hiếm khi xảy ra với 1 quầy lễ tân, nhưng về lý thuyết có thể), có thể ghi đè dữ liệu amountReceived lẫn nhau. Mình tạm bỏ qua để giữ code đơn giản cho đồ án — nếu muốn làm chặt hơn, báo mình bổ sung theo đúng pattern đã dùng ở InvoiceService.
+Chưa tính OrderCombo vào tổng tiền — calculateTotal hiện chỉ cộng OrderItem, vì entity OrderCombo chưa có repository/query riêng trong project (chưa ai trong nhóm làm tới).
+Nếu nhà hàng có bán combo và khách đã gọi combo, tổng tiền hiển thị sẽ thiếu phần đó. Đây là việc cần làm thêm khi bạn rảnh — báo mình, mình làm tiếp phần OrderComboRepository + gộp vào service này.
+Chưa khóa pessimistic (PESSIMISTIC_WRITE) khi thanh toán — khác với InvoiceService.getOrCreateOpenInvoice đã làm trước đây (có lock để tránh tạo trùng hóa đơn), hàm pay()/cancel() ở đây chưa có khóa tương tự.
+Rủi ro: nếu 2 lễ tân bấm “Thanh toán” cùng lúc cho cùng 1 hóa đơn (hiếm khi xảy ra với 1 quầy lễ tân, nhưng về lý thuyết có thể),
+có thể ghi đè dữ liệu amountReceived lẫn nhau. Mình tạm bỏ qua để giữ code đơn giản cho đồ án — nếu muốn làm chặt hơn, báo mình bổ sung theo đúng pattern đã dùng ở InvoiceService.
+
+Quy tắc “combo chỉ tính tiền khi mọi món con đều billable” là một quyết định nghiệp vụ mình tự đề xuất (hợp lý theo logic “bán trọn gói”),
+không phải điều bạn yêu cầu — nếu nhà hàng của bạn muốn tính tiền combo ngay cả khi 1 món con bị từ chối (ví dụ hết nguyên liệu, đổi món khác bù), thì cần quy tắc khác.
