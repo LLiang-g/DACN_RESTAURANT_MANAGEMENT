@@ -17,8 +17,8 @@ export default defineConfig({
   // sockjs-client cần biến global của Node; trong trình duyệt thay bằng globalThis
   define: { global: 'globalThis' },
   server: {
-    port: 5174,
-    // Gọi /api và /ws trên cổng 5174 sẽ được chuyển sang backend
+    port: 5175,
+    // Gọi /api và /ws trên cổng 5175 sẽ được chuyển sang backend
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true, configure: stripOrigin },
       '/ws': { target: 'http://localhost:8080', ws: true, configure: stripOrigin },

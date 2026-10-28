@@ -47,7 +47,10 @@ services:
       dockerfile: Dockerfile
     container_name: restaurant_management_frontend
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${CUSTOMER_PORT:-5173}:80"
+      - "${POS_PORT:-5174}:81"
+      - "${KDS_PORT:-5175}:82"
+      - "${ADMIN_PORT:-5176}:83"
     depends_on:
       - backend
     networks:

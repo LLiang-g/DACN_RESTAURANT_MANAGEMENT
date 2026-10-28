@@ -1,12 +1,14 @@
 # Hướng dẫn chạy và sử dụng Admin / Quản lý
 
-Tài liệu đối chiếu với code trên nhánh `nam_merge`, cập nhật ngày 26/10/2026.
+Tài liệu đối chiếu với code trên nhánh `nam_merge`, cập nhật ngày 27/10/2026.
 
 ## 1. Giới thiệu
 
 Admin/Quản lý là phân hệ cấu hình dữ liệu vận hành nhà hàng Smart POS: khu bếp, thực đơn, nguyên liệu, công thức, tồn kho, bàn, tài khoản và nhật ký. Theo [đặc tả chức năng](DACN-08-Dac-Ta-Chuc-Nang.md), Admin và Quản lý dùng chung phân hệ; quyền truy cập hiện tại là `ADMIN`.
 
 Frontend dùng React + TypeScript + Vite; backend dùng Spring Boot, Java 21, Spring Security/JWT và MySQL 8. Giao diện gọi API thật và backend lưu dữ liệu vào MySQL. Tuy nhiên, một số màn hình vẫn có dữ liệu mẫu và cập nhật local khi API lỗi; xem mục 8 để hiểu giới hạn của bản này.
+
+Project Admin nằm hoàn toàn trong `frontend/admin` với `package.json`, cấu hình Vite/TypeScript, mã nguồn và Dockerfile riêng. `frontend/kds` là project cùng cấp; Customer khi tích hợp sẽ nằm ở `frontend/customer`. Admin không import hoặc bọc hai ứng dụng này.
 
 ## 2. Chạy bằng Docker trên macOS và Windows
 
@@ -199,14 +201,14 @@ Lấy trường `token` trong phản hồi để gọi các API tiếp theo. `{i
 
 ```sh
 docker compose up --build -d mysql-db backend
-cd frontend
+cd frontend/admin
 npm ci
 npm run dev
 ```
 
-Mở `http://localhost:5173/`; các trang tương ứng là `http://localhost:5173/#/dashboard`, `http://localhost:5173/#/menu`... Vite chuyển `/api` sang backend `http://localhost:8080`. Nếu đổi BACKEND_PORT phải sửa đích proxy trong `frontend/vite.config.ts` cho phù hợp.
+Mở `http://localhost:5173/`; các trang tương ứng là `http://localhost:5173/#/dashboard`, `http://localhost:5173/#/menu`... Vite chuyển `/api` sang backend `http://localhost:8080`. Nếu đổi BACKEND_PORT phải sửa đích proxy trong `frontend/admin/vite.config.ts` cho phù hợp.
 
-Kiểm tra frontend từ thư mục `frontend`:
+Kiểm tra frontend từ thư mục `frontend/admin`:
 
 ```sh
 npm run build
@@ -221,7 +223,7 @@ npm ci
 npm run verify
 ```
 
-Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `frontend`, quay về thư mục gốc trước). Kết quả được ghi ở `tests/api/results/report.md`. Hướng dẫn import vào Postman và chạy trên Mac/Windows: [tests/api/README.md](tests/api/README.md). Bộ test bao phủ 76 endpoint REST với 108 lượt gọi; PASS không đồng nghĩa đã đáp ứng mọi yêu cầu nghiệp vụ. WebSocket và toàn bộ luồng giao diện chưa được bao phủ bởi bộ này.
+Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `frontend/admin`, quay về thư mục gốc trước). Kết quả được ghi ở `tests/api/results/report.md`. Hướng dẫn import vào Postman và chạy trên Mac/Windows: [tests/api/README.md](tests/api/README.md). Bộ test bao phủ 76 endpoint REST với 108 lượt gọi; PASS không đồng nghĩa đã đáp ứng mọi yêu cầu nghiệp vụ. WebSocket và toàn bộ luồng giao diện chưa được bao phủ bởi bộ này.
 
 ## 8. Các giới hạn đã xác định
 
@@ -249,11 +251,11 @@ Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `fron
 
 ## 10. Vị trí code
 
-- `frontend/src/pages/`: các màn hình Admin.
-- `frontend/src/services/adminApi.ts`: các lời gọi API; `http.ts`: token và xử lý HTTP.
-- `frontend/src/router/Router.tsx`: hash routing.
+- `frontend/admin/src/pages/`: các màn hình Admin.
+- `frontend/admin/src/services/adminApi.ts`: các lời gọi API; `http.ts`: token và xử lý HTTP.
+- `frontend/admin/src/router/Router.tsx`: hash routing.
 - `src/main/java/com/sccgroup/restaurant_management/admin/`: controller, service, DTO, đăng nhập và phân quyền Admin.
 - `src/main/java/com/sccgroup/restaurant_management/domain/`: entity, repository và nghiệp vụ dùng chung.
 - `scripts/hash-admin-password.py`: tạo hash mật khẩu.
-- `docker-compose.yml`, `Dockerfile`, `frontend/Dockerfile`: cấu hình chạy/build.
+- `docker-compose.yml`, `Dockerfile`, `frontend/admin/Dockerfile`: cấu hình chạy/build.
 - `tests/api/`: collection, môi trường và bộ chạy API tự động.
