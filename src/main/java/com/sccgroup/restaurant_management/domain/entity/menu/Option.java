@@ -50,8 +50,11 @@ public class Option {
 
     public Long getId() { return id; }
     public Food getFood() { return food; }
+    public void setFood(Food food) { this.food = food; }
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public OptionGroup getOptionGroup() { return optionGroup; }
+    public void setOptionGroup(OptionGroup optionGroup) { this.optionGroup = optionGroup; }
     public Ingredient getIngredient() { return ingredient; }
     public void setIngredient(Ingredient ingredient) { this.ingredient = ingredient; }
     public BigDecimal getAdjustAmount() { return adjustAmount; }

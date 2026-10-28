@@ -1,0 +1,30 @@
+name: dacn-api-test
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: api_test_only
+      MYSQL_DATABASE: smart_pos_kds
+    tmpfs:
+      - /var/lib/mysql
+    volumes:
+      - ../../sample_database.26.7.10.sql:/docker-entrypoint-initdb.d/01-sample.sql:ro
+      - ./fixtures.sql:/docker-entrypoint-initdb.d/02-api-test.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysqladmin ping -h 127.0.0.1 -uroot --silent']
+      interval: 3s
+      timeout: 5s
+      retries: 60
+  backend:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/smart_pos_kds?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: api_test_only
+    ports:
+      - '127.0.0.1:18080:8080'
+    depends_on:
+      db:
+        condition: service_healthy

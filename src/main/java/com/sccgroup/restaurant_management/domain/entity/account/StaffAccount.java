@@ -1,6 +1,7 @@
 package com.sccgroup.restaurant_management.domain.entity.account;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "staff_account")
@@ -28,6 +29,10 @@ public class StaffAccount {
 
     public Long getId() { return id; }
     public String getUsername() { return username; }
+    @JsonIgnore
     public String getPasswordHash() { return passwordHash; }
     public StaffRole getRole() { return role; }
+    public void setUsername(String username) { this.username = username; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public void setRole(StaffRole role) { this.role = role; }
 }

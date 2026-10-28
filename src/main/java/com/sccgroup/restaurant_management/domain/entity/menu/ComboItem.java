@@ -34,4 +34,5 @@ public class ComboItem {
     public Combo getCombo() { return combo; }
     public Food getFood() { return food; }
     public Integer getQuantity() { return quantity; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
 }

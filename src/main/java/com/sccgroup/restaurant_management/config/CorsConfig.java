@@ -14,8 +14,8 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**") // Cho phép tất cả các đường dẫn bắt đầu bằng /api
-                        .allowedOrigins("http://localhost:3000", "http://localhost:5173") // Domain của Frontend (React/Vite)
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:5174") // Domain của Frontend (React/Vite/KDS)
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);
             }

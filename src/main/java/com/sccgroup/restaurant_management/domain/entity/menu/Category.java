@@ -27,4 +27,6 @@ public class Category {
     public Long getId() { return id; }
     public String getName() { return name; }
     public KitchenStation getKitchenStation() { return kitchenStation; }
+    public void setName(String name) { this.name = name; }
+    public void setKitchenStation(KitchenStation kitchenStation) { this.kitchenStation = kitchenStation; }
 }
