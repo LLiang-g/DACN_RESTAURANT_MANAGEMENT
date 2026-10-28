@@ -13,7 +13,7 @@ export interface PendingOrder {
   tableId: number;
   tableNumber: string;
   floor: string;
-  createdAt: string; // backend trả LocalDateTime dạng chuỗi ISO, vd "2026-10-24T08:49:00"
+  createdAt: string;
   items: PendingOrderItem[];
 }
 
@@ -35,6 +35,21 @@ export interface InvoiceItem {
   status: string;
 }
 
+export interface InvoiceComboItem {
+  foodName: string;
+  quantity: number;
+  status: string;
+}
+
+export interface InvoiceCombo {
+  orderComboId: number;
+  comboName: string;
+  quantity: number;
+  comboPrice: number;
+  lineTotal: number;
+  items: InvoiceComboItem[];
+}
+
 export interface InvoiceDetail {
   invoiceId: number;
   tableId: number;
@@ -42,6 +57,7 @@ export interface InvoiceDetail {
   floor: string;
   status: 'OPEN' | 'PAID' | 'CANCELLED';
   items: InvoiceItem[];
+  combos: InvoiceCombo[];
   totalAmount: number;
 }
 

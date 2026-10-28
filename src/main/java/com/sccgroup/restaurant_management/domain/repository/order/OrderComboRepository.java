@@ -11,4 +11,9 @@ public interface OrderComboRepository extends JpaRepository<OrderCombo, Long> {
 
     @Query("select oc from OrderCombo oc join fetch oc.combo where oc.order.invoice.id = :invoiceId")
     List<OrderCombo> findByInvoiceId(@Param("invoiceId") Long invoiceId);
+
+    List<OrderCombo> findByOrderIdIn(List<Long> orderIds);
+
+    @Query("select oc from OrderCombo oc join fetch oc.combo where oc.order.id in :orderIds")
+    List<OrderCombo> findByOrderIdInWithCombo(@Param("orderIds") List<Long> orderIds);
 }

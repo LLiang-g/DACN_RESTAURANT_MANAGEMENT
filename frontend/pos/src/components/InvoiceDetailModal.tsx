@@ -66,18 +66,21 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
       onChanged();
       onClose();
     } catch (err: any) {
-      // Lỗi mong đợi nhất ở đây: TABLE_HAS_OPEN_INVOICE (hóa đơn còn OPEN, backend chặn)
       setError(err?.response?.data?.message ?? 'Không thể đưa bàn về Trống.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Không còn dùng để khóa nút Thanh toán nữa — chỉ còn tác dụng hiển thị
-  // dòng thông tin nhắc lễ tân biết vẫn còn món chưa xong, không chặn thao tác.
-  const hasUnsettled = invoice?.items.some((i) =>
-    ['PENDING', 'CONFIRMED', 'COOKING', 'DONE'].includes(i.status)
-  );
+  // Quét cả invoice.items lẫn món con bên trong từng combo, vì PENDING có thể
+  // nằm ở một trong hai chỗ sau khi tách combo ra khỏi danh sách items.
+  const hasPending =
+    invoice?.items.some((i) => i.status === 'PENDING') ||
+    invoice?.combos.some((c) => c.items.some((i) => i.status === 'PENDING'));
+
+  const hasUnservedApproved =
+    invoice?.items.some((i) => ['CONFIRMED', 'COOKING', 'DONE'].includes(i.status)) ||
+    invoice?.combos.some((c) => c.items.some((i) => ['CONFIRMED', 'COOKING', 'DONE'].includes(i.status)));
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -90,10 +93,27 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
 
             <ul className="invoice-items">
               {invoice.items.map((item) => (
-                <li key={item.orderItemId}>
+                <li key={`item-${item.orderItemId}`}>
                   <span>{item.foodName} x{item.quantity}</span>
                   <span className={`item-status ${item.status.toLowerCase()}`}>{item.status}</span>
                   <span>{item.lineTotal.toLocaleString('vi-VN')}đ</span>
+                </li>
+              ))}
+
+              {invoice.combos.map((combo) => (
+                <li key={`combo-${combo.orderComboId}`} className="invoice-combo-line">
+                  <div className="invoice-combo-header">
+                    <span>{combo.comboName} x{combo.quantity} <em>(combo)</em></span>
+                    <span>{combo.lineTotal.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                  <ul className="invoice-combo-items">
+                    {combo.items.map((ci, idx) => (
+                      <li key={idx}>
+                        <span>— {ci.foodName} x{ci.quantity}</span>
+                        <span className={`item-status ${ci.status.toLowerCase()}`}>{ci.status}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))}
             </ul>
@@ -104,7 +124,12 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
 
             {invoice.status === 'OPEN' && (
               <>
-                {hasUnsettled && (
+                {hasPending && (
+                  <p className="invoice-warning">
+                    Còn món chưa được duyệt — phải duyệt hoặc từ chối trước khi thanh toán.
+                  </p>
+                )}
+                {!hasPending && hasUnservedApproved && (
                   <p className="invoice-warning">
                     Vẫn còn món chưa phục vụ xong — bàn sẽ tự về Trống khi tất cả món hoàn tất.
                   </p>
@@ -151,7 +176,7 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                   <button className="cancel-invoice-btn" onClick={handleCancelInvoice} disabled={submitting}>
                     Hủy hóa đơn
                   </button>
-                  <button className="pay-btn" onClick={handlePay} disabled={submitting}>
+                  <button className="pay-btn" onClick={handlePay} disabled={submitting || hasPending}>
                     Thanh toán
                   </button>
                 </>

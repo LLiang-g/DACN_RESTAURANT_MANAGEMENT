@@ -9,20 +9,22 @@ import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
 import com.sccgroup.restaurant_management.domain.entity.billing.PaymentMethod;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
 import com.sccgroup.restaurant_management.domain.entity.order.Order;
+import com.sccgroup.restaurant_management.domain.entity.order.OrderCombo;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItem;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
+import com.sccgroup.restaurant_management.domain.repository.order.OrderComboRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderRepository;
-import com.sccgroup.restaurant_management.pos.dto.InvoiceDetailResponse;
-import com.sccgroup.restaurant_management.pos.dto.InvoiceItemResponse;
-import com.sccgroup.restaurant_management.pos.dto.PayRequest;
+import com.sccgroup.restaurant_management.pos.dto.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class PosInvoiceService {
@@ -32,15 +34,18 @@ public class PosInvoiceService {
     private final OrderItemRepository orderItemRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final TableReleaseService tableReleaseService;
+    private final OrderComboRepository orderComboRepository;
 
     public PosInvoiceService(InvoiceRepository invoiceRepository,
                              OrderRepository orderRepository,
                              OrderItemRepository orderItemRepository,
+                             OrderComboRepository orderComboRepository,
                              RealtimeEventPublisher realtimeEventPublisher,
                              TableReleaseService tableReleaseService) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.orderComboRepository = orderComboRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
         this.tableReleaseService = tableReleaseService;
     }
@@ -51,40 +56,44 @@ public class PosInvoiceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn với id = " + invoiceId));
 
         List<OrderItem> items = loadInvoiceItems(invoiceId);
+        List<OrderCombo> combos = loadInvoiceCombos(invoiceId);
+        Map<Long, List<OrderItem>> childrenByComboId = groupByComboId(items);
 
         List<InvoiceItemResponse> itemDtos = items.stream()
+                .filter(oi -> oi.getOrderCombo() == null) // chỉ món lẻ, món trong combo nằm trong 'combos'
                 .map(oi -> new InvoiceItemResponse(
-                        oi.getId(),
-                        oi.getFood().getName(),
-                        oi.getQuantity(),
-                        oi.getUnitPrice(),
-                        oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())),
-                        oi.getStatus().name()
-                ))
+                        oi.getId(), oi.getFood().getName(), oi.getQuantity(), oi.getUnitPrice(),
+                        oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())), oi.getStatus().name()))
+                .toList();
+
+        List<InvoiceComboResponse> comboDtos = combos.stream()
+                .map(combo -> toComboResponse(combo, childrenByComboId.getOrDefault(combo.getId(), List.of())))
                 .toList();
 
         RestaurantTable table = invoice.getTable();
 
         return new InvoiceDetailResponse(
                 invoice.getId(), table.getId(), table.getTableNumber(), table.getFloor(),
-                invoice.getStatus().name(), itemDtos, calculateTotal(items)
+                invoice.getStatus().name(), itemDtos, comboDtos, calculateTotal(items, combos)
         );
     }
 
     @Transactional
     public void pay(Long invoiceId, PayRequest request) {
-        // Không còn điều kiện "mọi món phải SERVED mới được thanh toán" nữa —
-        // lễ tân có thể thu tiền bất kỳ lúc nào khách yêu cầu, kể cả khi món
-        // vẫn còn đang nấu. Việc trả bàn về Trống được quyết định riêng ở
-        // TableReleaseService ngay bên dưới, không gắn cứng vào bước này nữa.
         Invoice invoice = getOpenInvoiceOrThrow(invoiceId);
         List<OrderItem> items = loadInvoiceItems(invoiceId);
-        BigDecimal total = calculateTotal(items);
+        List<OrderCombo> combos = loadInvoiceCombos(invoiceId);
+
+        if (items.stream().anyMatch(oi -> oi.getStatus() == OrderItemStatus.PENDING)) {
+            throw new BusinessException("INVOICE_HAS_PENDING_ITEMS",
+                    "Hóa đơn còn món chưa được duyệt, phải duyệt hoặc từ chối trước khi thanh toán");
+        }
+
+        BigDecimal total = calculateTotal(items, combos);
 
         if (request.paymentMethod() == PaymentMethod.CASH) {
             if (request.amountReceived() == null || request.amountReceived().compareTo(total) < 0) {
-                throw new BusinessException("AMOUNT_RECEIVED_INSUFFICIENT",
-                        "Số tiền khách đưa nhỏ hơn tổng tiền hóa đơn");
+                throw new BusinessException("AMOUNT_RECEIVED_INSUFFICIENT", "Số tiền khách đưa nhỏ hơn tổng tiền hóa đơn");
             }
             invoice.setAmountReceived(request.amountReceived());
             invoice.setChangeAmount(request.amountReceived().subtract(total));
@@ -97,10 +106,8 @@ public class PosInvoiceService {
         invoice.setPaidAt(LocalDateTime.now());
         invoiceRepository.save(invoice);
 
-        realtimeEventPublisher.publishAfterCommit(
-                "/topic/pos",
-                new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name())
-        );
+        realtimeEventPublisher.publishAfterCommit("/topic/pos",
+                new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name()));
         tableReleaseService.releaseTableIfSettled(invoiceId);
     }
 
@@ -132,24 +139,64 @@ public class PosInvoiceService {
 
     private List<OrderItem> loadInvoiceItems(Long invoiceId) {
         List<Order> orders = orderRepository.findByInvoiceId(invoiceId);
-        if (orders.isEmpty()) {
-            return List.of();
-        }
+        if (orders.isEmpty()) return List.of();
         List<Long> orderIds = orders.stream().map(Order::getId).toList();
         return orderItemRepository.findByOrderIdInWithFood(orderIds);
     }
 
-    private BigDecimal calculateTotal(List<OrderItem> items) {
+    private List<OrderCombo> loadInvoiceCombos(Long invoiceId) {
+        List<Order> orders = orderRepository.findByInvoiceId(invoiceId);
+        if (orders.isEmpty()) return List.of();
+        List<Long> orderIds = orders.stream().map(Order::getId).toList();
+        return orderComboRepository.findByOrderIdInWithCombo(orderIds);
+    }
+
+    private Map<Long, List<OrderItem>> groupByComboId(List<OrderItem> items) {
         return items.stream()
+                .filter(oi -> oi.getOrderCombo() != null)
+                .collect(Collectors.groupingBy(oi -> oi.getOrderCombo().getId()));
+    }
+
+    private InvoiceComboResponse toComboResponse(OrderCombo combo, List<OrderItem> children) {
+        List<InvoiceComboItemResponse> childDtos = children.stream()
+                .map(oi -> new InvoiceComboItemResponse(oi.getFood().getName(), oi.getQuantity(), oi.getStatus().name()))
+                .toList();
+        BigDecimal base = combo.getComboPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
+        BigDecimal surcharge = children.stream()
+                .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new InvoiceComboResponse(combo.getId(), combo.getCombo().getName(), combo.getQuantity(),
+                combo.getComboPrice(), base.add(surcharge), childDtos);
+    }
+
+    private BigDecimal calculateTotal(List<OrderItem> items, List<OrderCombo> combos) {
+        Map<Long, List<OrderItem>> childrenByComboId = groupByComboId(items);
+
+        BigDecimal itemTotal = items.stream()
+                .filter(oi -> oi.getOrderCombo() == null)
                 .filter(this::isBillable)
                 .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal comboTotal = combos.stream()
+                .filter(combo -> isComboBillable(childrenByComboId.getOrDefault(combo.getId(), List.of())))
+                .map(combo -> {
+                    List<OrderItem> children = childrenByComboId.getOrDefault(combo.getId(), List.of());
+                    BigDecimal base = combo.getComboPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
+                    BigDecimal surcharge = children.stream()
+                            .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return base.add(surcharge);
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return itemTotal.add(comboTotal);
     }
 
-    // Chỉ tính tiền món đã được lễ tân duyệt (qua khỏi PENDING) và chưa bị loại khỏi hóa đơn.
-// PENDING: chưa duyệt, có thể còn bị từ chối -> chưa chắc chắn nên không tính.
-// REJECTED/RETURNED: đã loại khỏi hóa đơn -> không tính.
-// CONFIRMED/COOKING/DONE/SERVED: đã duyệt, chắc chắn tính dù chưa phục vụ xong.
+    private boolean isComboBillable(List<OrderItem> children) {
+        return !children.isEmpty() && children.stream().allMatch(this::isBillable);
+    }
+
     private boolean isBillable(OrderItem item) {
         return switch (item.getStatus()) {
             case CONFIRMED, COOKING, DONE, SERVED -> true;

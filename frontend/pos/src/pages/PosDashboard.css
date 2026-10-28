@@ -394,3 +394,28 @@
 .modal-actions .free-table-btn:hover:not(:disabled) {
   background: #EEF1EE;
 }
+
+.invoice-combo-line {
+  display: block !important; /* override flex row của .invoice-items li thường */
+  padding: 10px 0;
+}
+
+.invoice-combo-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.invoice-combo-items {
+  margin: 6px 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.invoice-combo-items li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9em;
+  color: #5a6b63; /* điều chỉnh theo tông màu jade bạn đang dùng nếu muốn nhạt hơn chữ chính */
+  padding: 2px 0;
+}

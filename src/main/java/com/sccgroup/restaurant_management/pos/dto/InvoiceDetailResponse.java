@@ -10,5 +10,6 @@ public record InvoiceDetailResponse(
         String floor,
         String status,
         List<InvoiceItemResponse> items,
+        List<InvoiceComboResponse> combos,
         BigDecimal totalAmount
 ) {}
