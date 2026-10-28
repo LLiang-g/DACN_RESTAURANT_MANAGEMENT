@@ -498,3 +498,23 @@
 .badge.urgent {
   background: #AE3B27;
 }
+
+.call-staff-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: #AE3B27;
+  color: #fff;
+  padding: 14px 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+  cursor: pointer;
+  animation: toast-in 0.25s ease-out;
+}
+
+@keyframes toast-in {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

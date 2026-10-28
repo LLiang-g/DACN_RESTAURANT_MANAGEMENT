@@ -19,48 +19,71 @@ export default function PosDashboard({ onLogout }: Props) {
   const [tables, setTables] = useState<TableOverview[]>([]);
   const [callStaffRequests, setCallStaffRequests] = useState<CallStaffRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ tableId: number } | null>(null);
 
   const refresh = useCallback(async () => {
-  setLoading(true);
-  try {
-    const [ordersResult, tableResult, callStaffResult] = await Promise.allSettled([
-      posApi.getPendingOrders(),
-      posApi.getTableOverview(),
-      posApi.getPendingCallStaffRequests(),
-    ]);
+    setLoading(true);
+    try {
+      const [ordersResult, tableResult, callStaffResult] = await Promise.allSettled([
+        posApi.getPendingOrders(),
+        posApi.getTableOverview(),
+        posApi.getPendingCallStaffRequests(),
+      ]);
 
-    if (ordersResult.status === 'fulfilled') {
-      setPendingOrders(ordersResult.value);
-    } else {
-      console.error('Lỗi tải đơn chờ duyệt:', ordersResult.reason);
-    }
+      if (ordersResult.status === 'fulfilled') {
+        setPendingOrders(ordersResult.value);
+      } else {
+        console.error('Lỗi tải đơn chờ duyệt:', ordersResult.reason);
+      }
 
-    if (tableResult.status === 'fulfilled') {
-      setTables(tableResult.value);
-    } else {
-      console.error('Lỗi tải sơ đồ bàn:', tableResult.reason);
-    }
+      if (tableResult.status === 'fulfilled') {
+        setTables(tableResult.value);
+      } else {
+        console.error('Lỗi tải sơ đồ bàn:', tableResult.reason);
+      }
 
-    if (callStaffResult.status === 'fulfilled') {
-      setCallStaffRequests(callStaffResult.value);
-    } else {
-      console.error('Lỗi tải yêu cầu gọi nhân viên:', callStaffResult.reason);
+      if (callStaffResult.status === 'fulfilled') {
+        setCallStaffRequests(callStaffResult.value);
+      } else {
+        console.error('Lỗi tải yêu cầu gọi nhân viên:', callStaffResult.reason);
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  usePosSocket(refresh);
+  // Toast tự ẩn sau 6 giây kể từ lần set gần nhất
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  usePosSocket(refresh, (event) => {
+    if (event.type === 'CALL_STAFF') {
+      setToast({ tableId: event.tableId });
+    }
+  });
 
   const pendingItemCount = pendingOrders.reduce((sum, o) => sum + o.items.length, 0);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
+
   return (
     <div className="pos-dashboard">
+      {toast && (() => {
+        const table = tables.find((t) => t.tableId === toast.tableId);
+        return (
+          <div className="call-staff-toast" onClick={() => setToast(null)}>
+            🔔 Bàn {table?.tableNumber ?? toast.tableId}
+            {table ? ` — Tầng ${table.floor}` : ''} vừa gọi nhân viên!
+          </div>
+        );
+      })()}
+
       <nav className="pos-tabs">
         <button className={tab === 'tables' ? 'active' : ''} onClick={() => setTab('tables')}>
           Sơ đồ bàn
