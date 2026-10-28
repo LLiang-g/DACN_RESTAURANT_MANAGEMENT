@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { posApi } from '../api/posApi';
-import type { PendingOrder, TableOverview } from '../types/pos';
+import type { PendingOrder, TableOverview, CallStaffRequest } from '../types/pos';
 import { usePosSocket } from '../hooks/usePosSocket';
 import PendingOrdersPanel from '../components/PendingOrdersPanel';
 import TableOverviewPanel from '../components/TableOverviewPanel';
+import CallStaffPanel from '../components/CallStaffPanel';
 import './PosDashboard.css';
 import InvoiceDetailModal from '../components/InvoiceDetailModal';
-type Tab = 'tables' | 'pending';
+type Tab = 'tables' | 'pending' | 'callStaff';
 
 interface Props {
   onLogout: () => void;
@@ -16,21 +17,39 @@ export default function PosDashboard({ onLogout }: Props) {
   const [tab, setTab] = useState<Tab>('tables');
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [tables, setTables] = useState<TableOverview[]>([]);
+  const [callStaffRequests, setCallStaffRequests] = useState<CallStaffRequest[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [orders, tableList] = await Promise.all([
-        posApi.getPendingOrders(),
-        posApi.getTableOverview(),
-      ]);
-      setPendingOrders(orders);
-      setTables(tableList);
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const [ordersResult, tableResult, callStaffResult] = await Promise.allSettled([
+      posApi.getPendingOrders(),
+      posApi.getTableOverview(),
+      posApi.getPendingCallStaffRequests(),
+    ]);
+
+    if (ordersResult.status === 'fulfilled') {
+      setPendingOrders(ordersResult.value);
+    } else {
+      console.error('Lỗi tải đơn chờ duyệt:', ordersResult.reason);
     }
-  }, []);
+
+    if (tableResult.status === 'fulfilled') {
+      setTables(tableResult.value);
+    } else {
+      console.error('Lỗi tải sơ đồ bàn:', tableResult.reason);
+    }
+
+    if (callStaffResult.status === 'fulfilled') {
+      setCallStaffRequests(callStaffResult.value);
+    } else {
+      console.error('Lỗi tải yêu cầu gọi nhân viên:', callStaffResult.reason);
+    }
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => {
     refresh();
@@ -49,6 +68,9 @@ export default function PosDashboard({ onLogout }: Props) {
         <button className={tab === 'pending' ? 'active' : ''} onClick={() => setTab('pending')}>
           Duyệt đơn {pendingItemCount > 0 && <span className="badge">{pendingItemCount}</span>}
         </button>
+        <button className={tab === 'callStaff' ? 'active' : ''} onClick={() => setTab('callStaff')}>
+          Gọi nhân viên {callStaffRequests.length > 0 && <span className="badge urgent">{callStaffRequests.length}</span>}
+        </button>
         <button className="logout-btn" onClick={onLogout}>
           Đăng xuất
         </button>
@@ -61,6 +83,8 @@ export default function PosDashboard({ onLogout }: Props) {
       )}
 
       {tab === 'pending' && <PendingOrdersPanel orders={pendingOrders} onActionDone={refresh} />}
+
+      {tab === 'callStaff' && <CallStaffPanel requests={callStaffRequests} onActionDone={refresh} />}
 
       {selectedInvoiceId !== null && (
         <InvoiceDetailModal

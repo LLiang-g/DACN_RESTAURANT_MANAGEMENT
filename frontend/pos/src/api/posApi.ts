@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { PendingOrder, TableOverview,InvoiceDetail, PayRequest } from '../types/pos';
+import type { PendingOrder, TableOverview,InvoiceDetail, PayRequest,CallStaffRequest } from '../types/pos';
 
 export const posApi = {
   getPendingOrders: () =>
@@ -31,4 +31,10 @@ export const posApi = {
 
   freeTable: (tableId: number) =>
   apiClient.patch(`/api/pos/tables/${tableId}/free`),
+
+  getPendingCallStaffRequests: () =>
+  apiClient.get<CallStaffRequest[]>('/api/pos/call-staff-requests/pending').then((res) => res.data),
+
+  resolveCallStaffRequest: (requestId: number) =>
+    apiClient.patch(`/api/pos/call-staff-requests/${requestId}/resolve`),
 };

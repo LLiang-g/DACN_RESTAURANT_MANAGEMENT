@@ -68,3 +68,11 @@ export interface PayRequest {
   amountReceived?: number;
   bankTransactionRef?: string;
 }
+
+export interface CallStaffRequest {
+  requestId: number;
+  tableId: number;
+  tableNumber: string;
+  floor: string;
+  createdAt: string;
+}
