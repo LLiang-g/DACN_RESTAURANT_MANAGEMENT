@@ -142,6 +142,8 @@ test("Admin workflows persist recipes, image and combo; journal and printable QR
   await expect(
     page.getByRole("dialog").getByAltText("Mã QR gọi món").first(),
   ).toBeVisible();
+  await expect(page.locator(".modal-backdrop")).toHaveCSS("opacity", "1");
+  await expect(page.locator(".modal-card")).toHaveCSS("opacity", "1");
   await page.screenshot({ path: testInfo.outputPath("qr-batch.png"), fullPage: true });
   await page.pdf({
     path: testInfo.outputPath("qr-batch.pdf"),

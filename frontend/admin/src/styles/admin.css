@@ -1139,6 +1139,7 @@ body {
 
 /* Print Mode for QR Cards */
 @media print {
+  .modal-backdrop, .modal-card { animation: none !important; opacity: 1 !important; transform: none !important; }
   @page { size: A4; margin: 12mm; }
   body { background: white !important; overflow: visible !important; }
   body > #root { display: none !important; }
