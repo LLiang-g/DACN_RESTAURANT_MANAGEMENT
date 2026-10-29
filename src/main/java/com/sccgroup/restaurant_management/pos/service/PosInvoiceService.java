@@ -75,7 +75,12 @@ public class PosInvoiceService {
 
         return new InvoiceDetailResponse(
                 invoice.getId(), table.getId(), table.getTableNumber(), table.getFloor(),
-                invoice.getStatus().name(), itemDtos, comboDtos, calculateTotal(items, combos)
+                invoice.getStatus().name(), itemDtos, comboDtos, calculateTotal(items, combos),
+                invoice.getPaymentMethod() != null ? invoice.getPaymentMethod().name() : null,
+                invoice.getAmountReceived(),
+                invoice.getChangeAmount(),
+                invoice.getBankTransactionRef(),
+                invoice.getPaidAt()
         );
     }
 

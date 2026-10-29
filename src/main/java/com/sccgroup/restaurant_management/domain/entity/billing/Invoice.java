@@ -49,6 +49,26 @@ public class Invoice {
         this.openedAt = openedAt;
     }
 
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public BigDecimal getAmountReceived() {
+        return amountReceived;
+    }
+
+    public BigDecimal getChangeAmount() {
+        return changeAmount;
+    }
+
+    public String getBankTransactionRef() {
+        return bankTransactionRef;
+    }
+
+    public LocalDateTime getPaidAt() {
+        return paidAt;
+    }
+
     public Long getId() { return id; }
     public RestaurantTable getTable() { return table; }
     public InvoiceStatus getStatus() { return status; }

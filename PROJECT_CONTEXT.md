@@ -463,6 +463,8 @@ không phải điều bạn yêu cầu — nếu nhà hàng của bạn muốn t
 - mẫu in hóa đơn chưa có 
 - mã QR để thanh toán chưa có
 - các trạng thái món đang có vấn đề chưa tự chuyển được và ít nhất phải có chỗ thao tác đầy đủ 
+## vấn đề mới
+- trả món chưa có điền lý do 
 
 trong posInvoiceService có kdsNeedsRefresh :
 -Giải thích phần kdsNeedsRefresh: món nào đang PENDING (lễ tân chưa duyệt) thì bếp chưa từng thấy món đó — không cần báo gì. 

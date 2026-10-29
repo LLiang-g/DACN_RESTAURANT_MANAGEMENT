@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { InvoiceDetail, PaymentMethod } from '../types/pos';
 import { posApi } from '../api/posApi';
-
+import InvoiceReceipt from './InvoiceReceipt';
 interface Props {
   invoiceId: number;
   onClose: () => void;
@@ -131,7 +131,7 @@ const handleMarkReturned = async (orderItemId: number) => {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal invoice-modal" onClick={(e) => e.stopPropagation()}>
         {loading && <p>Đang tải...</p>}
-
+        
         {invoice && (
           <>
             <h4>Hóa đơn — Bàn {invoice.tableNumber} (Tầng {invoice.floor})</h4>
@@ -273,6 +273,13 @@ const handleMarkReturned = async (orderItemId: number) => {
                 Đưa bàn về Trống
               </button>
               <button onClick={onClose} disabled={submitting}>Đóng</button>
+              <button className="free-table-btn" onClick={handleFreeTable} disabled={submitting}>
+                Đưa bàn về Trống
+              </button>
+              <button className="print-btn" onClick={() => window.print()} disabled={submitting}>
+                In hóa đơn
+              </button>
+              <button onClick={onClose} disabled={submitting}>Đóng</button>
 
               {invoice.status === 'OPEN' && (
                 <>
@@ -285,6 +292,7 @@ const handleMarkReturned = async (orderItemId: number) => {
                 </>
               )}
             </div>
+            <InvoiceReceipt invoice={invoice} />
           </>
         )}
       </div>

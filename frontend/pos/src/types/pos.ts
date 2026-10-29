@@ -59,6 +59,11 @@ export interface InvoiceDetail {
   items: InvoiceItem[];
   combos: InvoiceCombo[];
   totalAmount: number;
+  paymentMethod: PaymentMethod | null;
+  amountReceived: number | null;
+  changeAmount: number | null;
+  bankTransactionRef: string | null;
+  paidAt: string | null;
 }
 
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';
