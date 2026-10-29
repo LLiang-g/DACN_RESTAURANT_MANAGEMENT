@@ -14,6 +14,7 @@ interface Props {
 }
 
 export default function PosDashboard({ onLogout }: Props) {
+  const username = localStorage.getItem('username') ?? 'Lễ tân';
   const [tab, setTab] = useState<Tab>('tables');
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [tables, setTables] = useState<TableOverview[]>([]);
@@ -85,18 +86,24 @@ export default function PosDashboard({ onLogout }: Props) {
       })()}
 
       <nav className="pos-tabs">
-        <button className={tab === 'tables' ? 'active' : ''} onClick={() => setTab('tables')}>
-          Sơ đồ bàn
-        </button>
-        <button className={tab === 'pending' ? 'active' : ''} onClick={() => setTab('pending')}>
-          Duyệt đơn {pendingItemCount > 0 && <span className="badge">{pendingItemCount}</span>}
-        </button>
-        <button className={tab === 'callStaff' ? 'active' : ''} onClick={() => setTab('callStaff')}>
-          Gọi nhân viên {callStaffRequests.length > 0 && <span className="badge urgent">{callStaffRequests.length}</span>}
-        </button>
-        <button className="logout-btn" onClick={onLogout}>
-          Đăng xuất
-        </button>
+        <div className="tabs-group">
+          <button className={tab === 'tables' ? 'active' : ''} onClick={() => setTab('tables')}>
+            Sơ đồ bàn
+          </button>
+          <button className={tab === 'pending' ? 'active' : ''} onClick={() => setTab('pending')}>
+            Duyệt đơn {pendingItemCount > 0 && <span className="badge">{pendingItemCount}</span>}
+          </button>
+          <button className={tab === 'callStaff' ? 'active' : ''} onClick={() => setTab('callStaff')}>
+            Gọi nhân viên {callStaffRequests.length > 0 && <span className="badge urgent">{callStaffRequests.length}</span>}
+          </button>
+        </div>
+
+        <div className="user-info-group">
+          <span className="user-badge">👤 {username}</span>
+          <button className="logout-btn" onClick={onLogout}>
+            Đăng xuất
+          </button>
+        </div>
       </nav>
 
       {loading && <p>Đang tải...</p>}

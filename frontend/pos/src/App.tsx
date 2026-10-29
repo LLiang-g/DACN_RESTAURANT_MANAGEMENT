@@ -13,9 +13,10 @@ function App() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    setIsLoggedIn(false);
-  };
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('username');
+  setIsLoggedIn(false);
+};
 
   return <PosDashboard onLogout={handleLogout} />;
 }

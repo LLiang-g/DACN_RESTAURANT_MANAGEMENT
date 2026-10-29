@@ -1,5 +1,7 @@
 export interface LoginResponse {
   token: string;
+  accountType: string;
   role: string;
-  username: string;
+  stationId: number | null;
+  stationName: string | null;
 }

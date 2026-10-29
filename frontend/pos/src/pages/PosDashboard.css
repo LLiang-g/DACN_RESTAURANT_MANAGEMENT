@@ -518,3 +518,73 @@
   from { transform: translateY(-12px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+.pos-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tabs-group {
+  display: flex;
+  gap: 8px;
+}
+
+.user-info-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-badge {
+  font-weight: 600;
+  color: #1E6F5C;
+  background: #EAF3F0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.9em;
+}
+
+.undo-return-btn {
+  margin-left: 8px;
+  background: transparent;
+  border: 1px solid #1E6F5C;
+  color: #1E6F5C;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.undo-return-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.serve-btn {
+  margin-left: 8px;
+  background: #1E6F5C;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.return-btn {
+  margin-left: 8px;
+  background: transparent;
+  border: 1px solid #AE3B27;
+  color: #AE3B27;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.serve-btn:disabled,
+.return-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

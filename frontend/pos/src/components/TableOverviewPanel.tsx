@@ -15,7 +15,7 @@ export default function TableOverviewPanel({ tables, onSelectInvoice }: Props) {
     <div className="table-overview">
       {Object.entries(byFloor).map(([floor, floorTables]) => (
         <section key={floor}>
-          <h3>Tầng {floor}</h3>
+          <h3> {floor}</h3>
           <div className="table-grid">
             {floorTables.map((t) => (
               <div

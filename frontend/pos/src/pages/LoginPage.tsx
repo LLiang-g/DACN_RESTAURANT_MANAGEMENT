@@ -28,6 +28,7 @@ export default function LoginPage({ onLoginSuccess }: Props) {
       }
 
       localStorage.setItem('accessToken', data.token);
+      localStorage.setItem('username', username);
       onLoginSuccess();
     } catch {
       // Không phân biệt rõ "sai username" hay "sai password" trong thông báo

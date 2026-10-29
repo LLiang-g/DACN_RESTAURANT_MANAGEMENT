@@ -35,6 +35,7 @@ public class PosInvoiceService {
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final TableReleaseService tableReleaseService;
     private final OrderComboRepository orderComboRepository;
+    private static final String INVOICE_CANCEL_NOTE = "Hóa đơn bị hủy";
 
     public PosInvoiceService(InvoiceRepository invoiceRepository,
                              OrderRepository orderRepository,
@@ -114,15 +115,40 @@ public class PosInvoiceService {
     @Transactional
     public void cancel(Long invoiceId) {
         Invoice invoice = getOpenInvoiceOrThrow(invoiceId);
+        List<OrderItem> items = loadInvoiceItems(invoiceId);
+
+        boolean hasCommittedItem = items.stream().anyMatch(oi -> switch (oi.getStatus()) {
+            case COOKING, DONE, SERVED, RETURNED -> true;
+            case PENDING, CONFIRMED, REJECTED -> false;
+        });
+        if (hasCommittedItem) {
+            throw new BusinessException("INVOICE_HAS_COOKED_ITEMS",
+                    "Hóa đơn đã có món được đưa xuống bếp nấu hoặc đã phục vụ, không thể hủy");
+        }
+
+        boolean kdsNeedsRefresh = false;
+        for (OrderItem item : items) {
+            if (item.getStatus() == OrderItemStatus.PENDING || item.getStatus() == OrderItemStatus.CONFIRMED) {
+                if (item.getStatus() == OrderItemStatus.CONFIRMED) {
+                    kdsNeedsRefresh = true; // món này bếp đã thấy trên màn hình, cần báo gỡ xuống
+                }
+                item.setStatus(OrderItemStatus.REJECTED);
+                item.setNote(INVOICE_CANCEL_NOTE);
+                orderItemRepository.save(item);
+            }
+        }
 
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoice.setCancelledAt(LocalDateTime.now());
         invoiceRepository.save(invoice);
 
-        realtimeEventPublisher.publishAfterCommit(
-                "/topic/pos",
-                new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name())
-        );
+        realtimeEventPublisher.publishAfterCommit("/topic/pos",
+                new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name()));
+
+        if (kdsNeedsRefresh) {
+            realtimeEventPublisher.publishAfterCommit("/topic/kds", Map.of("type", "CHANGED"));
+        }
+
         tableReleaseService.releaseTableIfSettled(invoiceId);
     }
 
@@ -159,7 +185,7 @@ public class PosInvoiceService {
 
     private InvoiceComboResponse toComboResponse(OrderCombo combo, List<OrderItem> children) {
         List<InvoiceComboItemResponse> childDtos = children.stream()
-                .map(oi -> new InvoiceComboItemResponse(oi.getFood().getName(), oi.getQuantity(), oi.getStatus().name()))
+                .map(oi -> new InvoiceComboItemResponse(oi.getId(), oi.getFood().getName(), oi.getQuantity(), oi.getStatus().name()))
                 .toList();
         return new InvoiceComboResponse(combo.getId(), combo.getCombo().getName(), combo.getQuantity(),
                 combo.getComboPrice(), comboLineTotal(combo, children), childDtos);

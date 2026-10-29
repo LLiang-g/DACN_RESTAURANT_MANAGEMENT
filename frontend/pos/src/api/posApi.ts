@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { PendingOrder, TableOverview,InvoiceDetail, PayRequest,CallStaffRequest } from '../types/pos';
+import type { PendingOrder, TableOverview,InvoiceDetail, PayRequest,CallStaffRequest, } from '../types/pos';
 
 export const posApi = {
   getPendingOrders: () =>
@@ -37,4 +37,8 @@ export const posApi = {
 
   resolveCallStaffRequest: (requestId: number) =>
     apiClient.patch(`/api/pos/call-staff-requests/${requestId}/resolve`),
+
+  undoReturnItem: (orderItemId: number) =>
+  apiClient.patch(`/api/pos/order-items/${orderItemId}/undo-return`),
+
 };

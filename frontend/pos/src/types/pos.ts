@@ -76,3 +76,10 @@ export interface CallStaffRequest {
   floor: string;
   createdAt: string;
 }
+
+export interface InvoiceComboItem {
+  orderItemId: number;
+  foodName: string;
+  quantity: number;
+  status: string;
+}

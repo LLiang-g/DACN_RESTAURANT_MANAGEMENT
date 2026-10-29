@@ -16,12 +16,17 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
   const [bankRef, setBankRef] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [processingItemId, setProcessingItemId] = useState<number | null>(null);
 
-  useEffect(() => {
+  const loadInvoice = () => {
     setLoading(true);
-    posApi.getInvoiceDetail(invoiceId)
+    return posApi.getInvoiceDetail(invoiceId)
       .then(setInvoice)
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadInvoice();
   }, [invoiceId]);
 
   const handlePay = async () => {
@@ -41,6 +46,34 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
       setSubmitting(false);
     }
   };
+  const handleMarkServed = async (orderItemId: number) => {
+  setError(null);
+  setProcessingItemId(orderItemId);
+  try {
+    await posApi.markServed(orderItemId);
+    await loadInvoice();
+    onChanged();
+  } catch (err: any) {
+    setError(err?.response?.data?.message ?? 'Không đánh dấu phục vụ được.');
+  } finally {
+    setProcessingItemId(null);
+  }
+};
+
+const handleMarkReturned = async (orderItemId: number) => {
+  if (!confirm('Xác nhận trả món này (khách không dùng nữa)?')) return;
+  setError(null);
+  setProcessingItemId(orderItemId);
+  try {
+    await posApi.markReturned(orderItemId);
+    await loadInvoice();
+    onChanged();
+  } catch (err: any) {
+    setError(err?.response?.data?.message ?? 'Không trả món được.');
+  } finally {
+    setProcessingItemId(null);
+  }
+};
 
   const handleCancelInvoice = async () => {
     if (!confirm('Xác nhận hủy hóa đơn này?')) return;
@@ -72,8 +105,20 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
     }
   };
 
-  // Quét cả invoice.items lẫn món con bên trong từng combo, vì PENDING có thể
-  // nằm ở một trong hai chỗ sau khi tách combo ra khỏi danh sách items.
+  const handleUndoReturn = async (orderItemId: number) => {
+    setError(null);
+    setProcessingItemId(orderItemId);
+    try {
+      await posApi.undoReturnItem(orderItemId);
+      await loadInvoice(); // tải lại để thấy trạng thái/tổng tiền mới, KHÔNG đóng modal
+      onChanged(); // đồng thời báo PosDashboard refresh danh sách bàn/đơn
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Không hoàn tác được.');
+    } finally {
+      setProcessingItemId(null);
+    }
+  };
+
   const hasPending =
     invoice?.items.some((i) => i.status === 'PENDING') ||
     invoice?.combos.some((c) => c.items.some((i) => i.status === 'PENDING'));
@@ -97,6 +142,36 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                   <span>{item.foodName} x{item.quantity}</span>
                   <span className={`item-status ${item.status.toLowerCase()}`}>{item.status}</span>
                   <span>{item.lineTotal.toLocaleString('vi-VN')}đ</span>
+
+                  {item.status === 'DONE' && (
+                    <button
+                      className="serve-btn"
+                      disabled={processingItemId === item.orderItemId}
+                      onClick={() => handleMarkServed(item.orderItemId)}
+                    >
+                      Phục vụ
+                    </button>
+                  )}
+
+                  {item.status === 'SERVED' && (
+                    <button
+                      className="return-btn"
+                      disabled={processingItemId === item.orderItemId}
+                      onClick={() => handleMarkReturned(item.orderItemId)}
+                    >
+                      Trả món
+                    </button>
+                  )}
+
+                  {item.status === 'RETURNED' && (
+                    <button
+                      className="undo-return-btn"
+                      disabled={processingItemId === item.orderItemId}
+                      onClick={() => handleUndoReturn(item.orderItemId)}
+                    >
+                      Hoàn tác
+                    </button>
+                  )}
                 </li>
               ))}
 
@@ -107,10 +182,38 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                     <span>{combo.lineTotal.toLocaleString('vi-VN')}đ</span>
                   </div>
                   <ul className="invoice-combo-items">
-                    {combo.items.map((ci, idx) => (
-                      <li key={idx}>
+                    {combo.items.map((ci) => (
+                      <li key={ci.orderItemId}>
                         <span>— {ci.foodName} x{ci.quantity}</span>
                         <span className={`item-status ${ci.status.toLowerCase()}`}>{ci.status}</span>
+
+                        {ci.status === 'DONE' && (
+                          <button
+                            className="serve-btn"
+                            disabled={processingItemId === ci.orderItemId}
+                            onClick={() => handleMarkServed(ci.orderItemId)}
+                          >
+                            Phục vụ
+                          </button>
+                        )}
+                        {ci.status === 'SERVED' && (
+                          <button
+                            className="return-btn"
+                            disabled={processingItemId === ci.orderItemId}
+                            onClick={() => handleMarkReturned(ci.orderItemId)}
+                          >
+                            Trả món
+                          </button>
+                        )}
+                        {ci.status === 'RETURNED' && (
+                          <button
+                            className="undo-return-btn"
+                            disabled={processingItemId === ci.orderItemId}
+                            onClick={() => handleUndoReturn(ci.orderItemId)}
+                          >
+                            Hoàn tác
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -131,7 +234,7 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                 )}
                 {!hasPending && hasUnservedApproved && (
                   <p className="invoice-warning">
-                    Vẫn còn món chưa phục vụ xong — bàn sẽ tự về Trống khi tất cả món hoàn tất.
+                    Vẫn còn món chưa phục vụ xong 
                   </p>
                 )}
 

@@ -386,7 +386,65 @@ Nấu/Xong chỉ được với món **thuộc khu bếp của tài khoản đă
 - Frontend khách: `src/realtime/tableSocket.ts` (cần `npm install` vì thêm `@stomp/stompjs`, `sockjs-client`); tải định kỳ 15s chỉ là dự phòng.
 
 
+### Cập nhật phần POS (lễ tân) — 28/10/2026
 
+**Đã hoàn thành thêm từ hạ tầng cũ:**
+
+- **Combo đã được tính đúng vào hóa đơn.** Đã thêm `OrderComboRepository.findByOrderIdInWithCombo()`,
+  `InvoiceDetailResponse` giờ có thêm field `combos` (tách riêng khỏi `items`: món lẻ nằm trong `items`,
+  món thuộc combo nằm lồng trong từng phần tử của `combos`).
+- **Quyết định nghiệp vụ MỚI, THAY THẾ quyết định cũ ở mục 11** ("chỉ cộng combo khi mọi món con
+  KHÔNG REJECTED"): giờ combo **vẫn tính tiền** kể cả khi 1 món con bị REJECTED/RETURNED — chỉ **trừ
+  giá bán lẻ hiện tại** (`food.getPrice()`) của (các) món con bị hủy ra khỏi `comboPrice`, sàn ở 0
+  (`max(base - rejectedDeduction, 0)`). Lý do đổi: giá combo là trọn gói, hủy 1 món không nên làm cả
+  combo về 0đ — nhà hàng vẫn có thể bù món khác hoặc giao thiếu 1 món mà vẫn thu phần còn lại.
+  - **Vẫn khớp ví dụ dữ liệu mẫu cũ** (hóa đơn #4, combo bị hủy toàn bộ → phải ra 0đ): vì tổng giá bán
+    lẻ các món con (408.000) > giá combo (368.000, đã giảm 40.000), khi mọi món con bị REJECTED thì
+    `rejectedDeduction` (408.000) > `base` (368.000) → kết quả sàn về đúng 0đ, không cần xử lý riêng.
+  - Combo chỉ bị chặn tính tiền (loại khỏi `calculateTotal`) khi còn ít nhất 1 món con `PENDING`
+    (`isComboBillable` = `noneMatch(PENDING)`), không còn yêu cầu "tất cả món con phải billable" như
+    bản cũ.
+- **Chặn thanh toán khi còn món PENDING** (mã lỗi `INVOICE_HAS_PENDING_ITEMS`) — chỉ món đã duyệt
+  (không PENDING) mới được tính vào hóa đơn; trước đây mọi món PENDING vẫn bị cộng vào tổng.
+- **Thanh toán được bất kỳ lúc nào**, không bắt buộc đợi mọi món `SERVED` xong mới cho thanh toán
+  (khác quyết định cũ ở mục 11 "Chặn thanh toán khi còn món PENDING/CONFIRMED/COOKING" — giờ chỉ
+  chặn vì PENDING, không chặn vì CONFIRMED/COOKING/DONE nữa).
+- **Trả bàn về Trống**: tự động khi mọi `OrderItem` của hóa đơn đạt trạng thái cuối
+  (SERVED/REJECTED/RETURNED) — kiểm tra ở nhiều điểm kích hoạt (`pay`, `cancel`, `reject`, `markServed`,
+  `markReturned`), gom logic vào `TableReleaseService`. Thêm nút lễ tân **chủ động** trả bàn
+  (`PATCH /api/pos/tables/{id}/free`), bị chặn (mã lỗi `TABLE_HAS_OPEN_INVOICE`) nếu hóa đơn còn `OPEN`.
+- **Xử lý "Gọi nhân viên" phía Lễ tân** (phía khách đã có sẵn từ trước — `CustomerCallStaffService`,
+  `CallStaffRequestRepository`, bảng `call_staff_request`):
+  - `GET /api/pos/call-staff-requests/pending` — danh sách yêu cầu đang `PENDING`.
+  - `PATCH /api/pos/call-staff-requests/{id}/resolve` — đánh dấu đã xử lý, chặn xử lý trùng
+    (mã lỗi `CALL_STAFF_REQUEST_ALREADY_RESOLVED`).
+  - Đẩy realtime qua `/topic/pos` bằng `RealtimeEventPublisher` lúc resolve (record
+    `CallStaffStatusEvent`); lúc **tạo** request thì phía khách đã tự đẩy sẵn qua
+    `TableEventPublisher.publishPosEvent(EVENT_CALL_STAFF, tableId)` — payload dạng
+    `{"type":"CALL_STAFF","tableId":...}`, khác hẳn cấu trúc các record khác gửi qua
+    `RealtimeEventPublisher` (không có field `type`) — frontend lợi dụng điểm này để lọc riêng sự
+    kiện gọi nhân viên và hiện toast, không lẫn với các sự kiện refresh khác.
+
+**Đã xác nhận (trước đây là giả định chưa kiểm chứng):**
+- `LoginResponse` thật: `{token, accountType, role, stationId, stationName}` — **không có field
+  `username`**. Muốn hiển thị tên tài khoản đăng nhập ở frontend thì phải tự lưu lại chuỗi username
+  người dùng gõ vào ô đăng nhập (`localStorage.setItem('username', username)` ngay lúc login thành
+  công), vì backend không trả lại tên đó.
+
+**Vẫn còn tồn đọng (chưa làm):**
+- Khóa `PESSIMISTIC_WRITE` cho `pay()`/`cancel()` trong `PosInvoiceService` — vẫn như ghi chú cũ, chưa
+  bổ sung.
+- Bảng mã lỗi trong báo cáo đồ án (Phần 6, ngoài phạm vi code) chưa cập nhật các mã mới:
+  `INVOICE_HAS_PENDING_ITEMS`, `TABLE_HAS_OPEN_INVOICE`, `CALL_STAFF_REQUEST_ALREADY_RESOLVED`,
+  `ORDER_ITEM_NOT_SERVABLE`.
+
+**Frontend lễ tân (`frontend/pos`) — bổ sung:**
+- 3 tab: Sơ đồ bàn / Duyệt đơn / Gọi nhân viên (badge số lượng cho 2 tab sau).
+- Toast nổi góc phải màn hình khi có sự kiện `CALL_STAFF` mới qua WebSocket, tự ẩn sau 6 giây.
+- `usePosSocket` mở rộng thêm tham số thứ 2 (tùy chọn) để đọc nội dung message thay vì chỉ trigger
+  refresh chung chung.
+- Ô hiển thị tài khoản đang đăng nhập + nút Đăng xuất dồn sang góc phải nav.
+- Theme sáng jade/porcelain/amber (đã làm ở bước trước, không đổi).
 ### Lưu ý trong phần POS
 2 điều cần bạn lưu ý, không phải lỗi nhưng là giới hạn có chủ đích của bản này:
 Chưa tính OrderCombo vào tổng tiền — calculateTotal hiện chỉ cộng OrderItem, vì entity OrderCombo chưa có repository/query riêng trong project (chưa ai trong nhóm làm tới).
@@ -397,3 +455,18 @@ có thể ghi đè dữ liệu amountReceived lẫn nhau. Mình tạm bỏ qua �
 
 Quy tắc “combo chỉ tính tiền khi mọi món con đều billable” là một quyết định nghiệp vụ mình tự đề xuất (hợp lý theo logic “bán trọn gói”),
 không phải điều bạn yêu cầu — nếu nhà hàng của bạn muốn tính tiền combo ngay cả khi 1 món con bị từ chối (ví dụ hết nguyên liệu, đổi món khác bù), thì cần quy tắc khác.
+
+### cần kiểm tra lại 1 số thứ trong POS
+- ( bàn sẽ tự đưa về trống khi tất cả món hoàn tất )
+- việc đưa bàn về trống khi hóa đơn chưa được thanh toán 
+- việc được hủy hóa đơn khi nào ( hiện tại thấy là đang có thể hủy hóa đơn bất cứ lúc nào )
+- mẫu in hóa đơn chưa có 
+- mã QR để thanh toán chưa có
+- các trạng thái món đang có vấn đề chưa tự chuyển được và ít nhất phải có chỗ thao tác đầy đủ 
+
+trong posInvoiceService có kdsNeedsRefresh :
+-Giải thích phần kdsNeedsRefresh: món nào đang PENDING (lễ tân chưa duyệt) thì bếp chưa từng thấy món đó — không cần báo gì. 
+Nhưng món CONFIRMED (đã duyệt, đang hiện trên màn hình bếp) mà bị buộc chuyển REJECTED do hủy hóa đơn — bếp phải được báo để gỡ món đó khỏi màn hình,
+nếu không sẽ tiếp tục nấu cho 1 hóa đơn đã hủy. Dùng Map.of("type", "CHANGED") gửi lên /topic/kds đúng định dạng KdsEventPublisher đang dùng (theo context: nội dung {"type":"CHANGED"},
+màn hình bếp nhận được thì tự tải lại danh sách)
+  

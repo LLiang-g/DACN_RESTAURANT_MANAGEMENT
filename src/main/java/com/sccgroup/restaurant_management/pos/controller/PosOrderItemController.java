@@ -39,4 +39,10 @@ public class PosOrderItemController {
         posOrderActionService.markReturned(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}/undo-return")
+    public ResponseEntity<Void> undoReturn(@PathVariable Long id) {
+        posOrderActionService.undoReturn(id);
+        return ResponseEntity.noContent().build();
+    }
 }

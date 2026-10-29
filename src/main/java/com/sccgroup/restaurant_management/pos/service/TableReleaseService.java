@@ -46,15 +46,15 @@ public class TableReleaseService {
         Invoice invoice = invoiceRepository.findByIdWithTable(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn với id = " + invoiceId));
 
-        // Hóa đơn còn OPEN (chưa thanh toán, chưa hủy) -> chưa có cơ sở để tự động trả bàn
-        if (invoice.getStatus() == InvoiceStatus.OPEN) {
+        // Chỉ tự động trả bàn khi hóa đơn bị HỦY. Hóa đơn PAID luôn cần lễ tân xác nhận
+        // bằng tay (freeTable) — "mọi món đã SERVED" không đồng nghĩa "khách đã rời bàn".
+        if (invoice.getStatus() != InvoiceStatus.CANCELLED) {
             return;
         }
 
         List<Order> orders = orderRepository.findByInvoiceId(invoiceId);
         List<Long> orderIds = orders.stream().map(Order::getId).toList();
-        List<OrderItem> items = orderIds.isEmpty()
-                ? List.of()
+        List<OrderItem> items = orderIds.isEmpty() ? List.of()
                 : orderItemRepository.findByOrderIdInWithFood(orderIds);
 
         boolean allResolved = items.stream().allMatch(oi ->
@@ -64,10 +64,8 @@ public class TableReleaseService {
 
         if (allResolved) {
             invoice.getTable().setStatus(TableStatus.AVAILABLE);
-            realtimeEventPublisher.publishAfterCommit(
-                    "/topic/pos",
-                    new TableStatusEvent(invoice.getTable().getId(), TableStatus.AVAILABLE.name())
-            );
+            realtimeEventPublisher.publishAfterCommit("/topic/pos",
+                    new TableStatusEvent(invoice.getTable().getId(), TableStatus.AVAILABLE.name()));
         }
     }
 }
