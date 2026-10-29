@@ -18,6 +18,8 @@ public class ActivityLog {
     @Column(name = "account_type")
     private AccountType accountType;
 
+    private String actorName;
+    private String targetName;
     private String action;
 
     @Column(name = "target_type")
@@ -43,6 +45,16 @@ public class ActivityLog {
         this.targetId = targetId;
         this.detail = detail;
         this.createdAt = createdAt;
+    }
+
+    public String getActorName() { return actorName; }
+    public String getTargetName() { return targetName; }
+    public void setNames(String actor, String target) { this.actorName = actor; this.targetName = target; }
+
+    @PrePersist
+    private void completeDetail() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (detail == null || detail.isBlank()) detail = "Ghi nhận " + (action == null ? "hoạt động" : action) + " · " + (targetName == null ? (targetType == null ? "hệ thống" : targetType) : targetName);
     }
 
     public Long getId() { return id; }

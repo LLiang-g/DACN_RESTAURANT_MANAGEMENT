@@ -1,9 +1,10 @@
+import { printQR } from '../utils/printQR';
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../components/ui/PageHeader";
 import DataTable, { type Column } from "../components/ui/DataTable";
 import RowActions from "../components/ui/RowActions";
 import Modal from "../components/ui/Modal";
-import QRCodeView from "../components/ui/QRCodeView";
+import QRCodeView, { QRImage } from "../components/ui/QRCodeView";
 import Toast, { type ToastMessage } from "../components/ui/Toast";
 import {
   getTables,
@@ -11,7 +12,7 @@ import {
   updateTable,
   deleteTable,
 } from "../services/adminApi";
-import { mockTables } from "../data/mock";
+
 import type { RestaurantTable, TableStatus } from "../types";
 
 export default function TablesPage() {
@@ -54,14 +55,12 @@ export default function TablesPage() {
     try {
       const data = await getTables();
       setTables(data);
-    } catch {
-      setTables(mockTables);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   useEffect(() => {
     let active = true;
-    getTables().catch(() => mockTables).then(tables => { if (active) setTables(tables); });
+    getTables().catch(error => { addToast("error", error.message); return []; }).then(tables => { if (active) setTables(tables); });
     return () => { active = false; };
   }, []);
 
@@ -111,22 +110,12 @@ export default function TablesPage() {
         await updateTable(editingTable.id, tableForm);
         addToast("success", `Đã cập nhật bàn "${tableForm.tableNumber}"`);
       } else {
-        await createTable(tableForm);
+        await createTable({...tableForm, status: "AVAILABLE"});
         addToast("success", `Đã thêm bàn "${tableForm.tableNumber}"`);
       }
       setTableModalOpen(false);
       loadData();
-    } catch {
-      if (editingTable) {
-        setTables((prev) =>
-          prev.map((t) => (t.id === editingTable.id ? { ...t, ...tableForm } : t))
-        );
-      } else {
-        setTables((prev) => [...prev, { id: Date.now(), ...tableForm }]);
-      }
-      setTableModalOpen(false);
-      addToast("success", "Lưu bàn thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteTable = async (t: RestaurantTable) => {
@@ -135,10 +124,7 @@ export default function TablesPage() {
       await deleteTable(t.id);
       addToast("success", `Đã xóa bàn "${t.tableNumber}"`);
       loadData();
-    } catch {
-      setTables((prev) => prev.filter((x) => x.id !== t.id));
-      addToast("info", `Đã xóa bàn "${t.tableNumber}" (local)`);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleOpenQR = (t: RestaurantTable) => {
@@ -162,8 +148,9 @@ export default function TablesPage() {
   };
 
   const getTableQrUrl = (tableId: number) => {
-    const origin = window.location.origin;
-    return `${origin}/?table=${tableId}`;
+    const configured = import.meta.env.VITE_CUSTOMER_URL as string | undefined;
+    const base = configured || `${window.location.protocol}//${window.location.hostname}:5173/`;
+    const url = new URL(base); url.searchParams.set('table', String(tableId)); return url.toString();
   };
 
   const selectedTables = tables.filter((t) => selectedTableIds.includes(t.id));
@@ -273,7 +260,7 @@ export default function TablesPage() {
       </div>}
 
       <DataTable
-        columns={showTools ? columns : columns.filter(c => c.key !== "checkbox" && c.key !== "qrCode")}
+        columns={showTools ? columns : columns.filter(c => c.key !== "checkbox")}
         rows={filteredTables}
         empty="Không tìm thấy bàn nào phù hợp"
         actions={(t) => (
@@ -330,22 +317,7 @@ export default function TablesPage() {
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Trạng thái bàn ban đầu</label>
-          <select
-            className="field wide"
-            value={tableForm.status}
-            onChange={(e) =>
-              setTableForm({
-                ...tableForm,
-                status: e.target.value as TableStatus,
-              })
-            }
-          >
-            <option value="AVAILABLE">Trống (AVAILABLE)</option>
-            <option value="SERVING">Đang có khách (SERVING)</option>
-          </select>
-        </div>
+        <p className="form-hint">Bàn mới luôn ở trạng thái Trống. Trạng thái phục vụ được cập nhật theo hoạt động của bàn.</p>
       </Modal>
 
       {/* MODAL XEM MÃ QR ĐƠN BÀN */}
@@ -383,7 +355,7 @@ export default function TablesPage() {
             <button
               type="button"
               className="btn-primary"
-              onClick={() => window.print()}
+              onClick={printQR}
             >
               🖨️ In tất cả {selectedTables.length} thẻ bàn
             </button>
@@ -400,15 +372,7 @@ export default function TablesPage() {
               <div className="qr-brand-tag">SMART POS</div>
               <h3 className="qr-table-title">BÀN {t.tableNumber}</h3>
               <div className="qr-floor-tag">{t.floor}</div>
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(
-                  getTableQrUrl(t.id)
-                )}`}
-                alt={`QR ${t.tableNumber}`}
-                width={140}
-                height={140}
-                className="qr-image"
-              />
+              <QRImage value={getTableQrUrl(t.id)} size={180} />
               <p className="qr-instruct">Quét mã để xem menu & gọi món</p>
             </div>
           ))}

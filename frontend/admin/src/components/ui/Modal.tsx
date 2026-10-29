@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, type ReactNode } from "react";
 
 interface ModalProps {
@@ -35,7 +36,7 @@ export default function Modal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div
         className="modal-card"
@@ -56,6 +57,6 @@ export default function Modal({
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>, document.body
   );
 }

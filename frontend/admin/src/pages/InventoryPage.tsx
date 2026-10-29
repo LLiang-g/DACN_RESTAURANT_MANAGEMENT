@@ -1,743 +1,452 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "../components/ui/PageHeader";
-import Tabs from "../components/ui/Tabs";
-import DataTable, { type Column } from "../components/ui/DataTable";
-import RowActions from "../components/ui/RowActions";
 import Modal from "../components/ui/Modal";
-import Toast, { type ToastMessage } from "../components/ui/Toast";
 import {
   getIngredients,
   createIngredient,
   updateIngredient,
   deleteIngredient,
-  getFoods,
-  getRecipesByFood,
-  createRecipe,
-  updateRecipe,
-  deleteRecipe,
   getStockTransactions,
   createStockTransaction,
 } from "../services/adminApi";
-import { mockIngredients, mockFoods } from "../data/mock";
-import { formatNumber, formatDateTime } from "../utils/format";
+import { formatDateTime, formatNumber } from "../utils/format";
 import type {
   Ingredient,
-  Food,
-  Recipe,
   StockTransaction,
-  TabItem,
   StockTransactionType,
 } from "../types";
 
-const TABS: TabItem[] = [
-  { key: "ingredients", label: "Nguyên liệu" },
-  { key: "recipes", label: "Công thức" },
-  { key: "history", label: "Lịch sử kho" },
-];
-
 export default function InventoryPage() {
-  const [tab, setTab] = useState("ingredients");
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  // Data states
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [foods, setFoods] = useState<Food[]>([]);
-  const [selectedFoodId, setSelectedFoodId] = useState<number>(0);
-  const [recipeVersion, setRecipeVersion] = useState(0);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [transactions, setTransactions] = useState<StockTransaction[]>([]);
-
-  // Search & Filter
-  const [searchIng, setSearchIng] = useState("");
-  const [filterLowStock, setFilterLowStock] = useState(false);
-
-  // Ingredient Modal
-  const [ingModalOpen, setIngModalOpen] = useState(false);
-  const [editingIng, setEditingIng] = useState<Ingredient | null>(null);
-  const [ingForm, setIngForm] = useState({
+  const [tab, setTab] = useState("ingredients");
+  const [search, setSearch] = useState("");
+  const [low, setLow] = useState(false);
+  const [day, setDay] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Ingredient | null>(null);
+  const [open, setOpen] = useState(false);
+  const [stockOpen, setStockOpen] = useState(false);
+  const [form, setForm] = useState({
     name: "",
     unit: "kg",
-    stockQuantity: 10,
-    minThreshold: 2,
+    stockQuantity: 0,
+    minThreshold: 0,
   });
-
-  // Stock Transaction Modal
-  const [stockModalOpen, setStockModalOpen] = useState(false);
-  const [stockForm, setStockForm] = useState<{
-    ingredientId: number;
-    type: StockTransactionType;
-    quantity: number;
-    note: string;
-  }>({
+  const [stock, setStock] = useState({
     ingredientId: 0,
-    type: "IMPORT",
+    type: "IMPORT" as StockTransactionType,
     quantity: 1,
     note: "",
   });
-
-  // Recipe (BOM) Modal
-  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
-  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
-  const [recipeForm, setRecipeForm] = useState({
-    foodId: 0,
-    ingredientId: 0,
-    quantityRequired: 0.1,
-  });
-
-  const addToast = (type: "success" | "error" | "info", text: string) => {
-    setToasts((prev) => [...prev, { id: Date.now(), type, text }]);
-  };
-
-  const loadData = async () => {
-    try {
-      const [ing, f, tx] = await Promise.all([
-        getIngredients().catch(() => mockIngredients),
-        getFoods().catch(() => mockFoods),
-        getStockTransactions().catch(() => []),
-      ]);
-      setIngredients(ing);
-      setFoods(f);
-
-      setTransactions(tx);
-    } catch {
-      setIngredients(mockIngredients);
-      setFoods(mockFoods);
-
-    }
-  };
-
   useEffect(() => {
     let active = true;
-    Promise.all([getIngredients().catch(() => mockIngredients), getFoods().catch(() => mockFoods), getStockTransactions().catch(() => [])])
-      .then(([ingredients, foods, transactions]) => { if (active) { setIngredients(ingredients); setFoods(foods); setTransactions(transactions); } });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    const selected = selectedFoodId ? foods.filter(f => f.id === selectedFoodId) : foods;
-    Promise.all(selected.map(async food => (await getRecipesByFood(food.id)).map(recipe => ({ ...recipe, food }))))
-      .then(data => { if (active) setRecipes(data.flat()); })
-      .catch(() => { if (active) setRecipes([]); });
-    return () => { active = false; };
-  }, [foods, selectedFoodId, recipeVersion]);
-
-  // Filtered ingredients
-  const filteredIngredients = useMemo(() => {
-    return ingredients.filter((i) => {
-      const matchName = i.name.toLowerCase().includes(searchIng.trim().toLowerCase());
-      const matchLow = !filterLowStock || i.stockQuantity <= i.minThreshold;
-      return matchName && matchLow;
-    });
-  }, [ingredients, searchIng, filterLowStock]);
-
-  // Ingredient Handlers
-  const handleOpenAddIng = () => {
-    setEditingIng(null);
-    setIngForm({
-      name: "",
-      unit: "kg",
-      stockQuantity: 10,
-      minThreshold: 2,
-    });
-    setIngModalOpen(true);
-  };
-
-  const handleOpenEditIng = (ing: Ingredient) => {
-    setEditingIng(ing);
-    setIngForm({
-      name: ing.name,
-      unit: ing.unit,
-      stockQuantity: ing.stockQuantity,
-      minThreshold: ing.minThreshold,
-    });
-    setIngModalOpen(true);
-  };
-
-  const handleSaveIng = async () => {
-    if (!ingForm.name.trim()) {
-      addToast("error", "Nguyên liệu không được để trống");
+    Promise.all([getIngredients(), getStockTransactions()])
+      .then(([i, t]) => {
+        if (active) {
+          setIngredients(i);
+          setTransactions(t);
+        }
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [revision]);
+  async function saveIngredient() {
+    if (
+      !form.name.trim() ||
+      !form.unit.trim() ||
+      form.stockQuantity < 0 ||
+      form.minThreshold < 0
+    ) {
+      setError("Nhập tên, đơn vị và số lượng không âm.");
       return;
     }
-    if (!ingForm.unit.trim()) {
-      addToast("error", "Đơn vị không được để trống");
-      return;
-    }
+    setBusy(true);
+    setError("");
     try {
-      if (editingIng) {
-        await updateIngredient(editingIng.id, ingForm);
-        addToast("success", `Đã cập nhật nguyên liệu "${ingForm.name}"`);
-      } else {
-        await createIngredient(ingForm);
-        addToast("success", `Đã thêm nguyên liệu "${ingForm.name}"`);
-      }
-      setIngModalOpen(false);
-      loadData();
-    } catch {
-      if (editingIng) {
-        setIngredients((prev) =>
-          prev.map((i) => (i.id === editingIng.id ? { ...i, ...ingForm } : i))
-        );
-      } else {
-        setIngredients((prev) => [...prev, { id: Date.now(), ...ingForm }]);
-      }
-      setIngModalOpen(false);
-      addToast("success", "Lưu nguyên liệu thành công (local)");
+      if (editing) await updateIngredient(editing.id, form);
+      else await createIngredient(form);
+      setOpen(false);
+      setRevision((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không lưu được nguyên liệu");
+    } finally {
+      setBusy(false);
     }
-  };
-
-  const handleDeleteIng = async (ing: Ingredient) => {
-    if (!window.confirm(`Xóa nguyên liệu "${ing.name}"?`)) return;
+  }
+  async function remove(i: Ingredient) {
+    if (!confirm(`Xóa nguyên liệu ${i.name}?`)) return;
+    setError("");
     try {
-      await deleteIngredient(ing.id);
-      addToast("success", `Đã xóa nguyên liệu "${ing.name}"`);
-      loadData();
-    } catch {
-      setIngredients((prev) => prev.filter((i) => i.id !== ing.id));
-      addToast("info", `Đã xóa nguyên liệu "${ing.name}" (local)`);
+      await deleteIngredient(i.id);
+      setRevision((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không xóa được nguyên liệu");
     }
-  };
-
-  // Stock Transaction Handlers
-  const handleOpenStockModal = (ing?: Ingredient) => {
-    setStockForm({
-      ingredientId: ing?.id || ingredients[0]?.id || 0,
-      type: "IMPORT",
-      quantity: 5,
-      note: "",
-    });
-    setStockModalOpen(true);
-  };
-
-  const handleSaveStockTransaction = async () => {
-    if (!stockForm.ingredientId) {
-      addToast("error", "Vui lòng chọn nguyên liệu");
+  }
+  async function saveStock() {
+    if (
+      !stock.ingredientId ||
+      !Number.isFinite(stock.quantity) ||
+      stock.quantity <= 0
+    ) {
+      setError("Chọn nguyên liệu và số lượng lớn hơn 0.");
       return;
     }
-    if (stockForm.quantity <= 0) {
-      addToast("error", "Số lượng phải lớn hơn 0");
-      return;
-    }
+    setBusy(true);
+    setError("");
     try {
-      await createStockTransaction(stockForm);
-      addToast("success", "Đã ghi nhận giao dịch kho");
-      setStockModalOpen(false);
-      loadData();
-    } catch {
-      // Local update
-      const targetIng = ingredients.find((i) => i.id === stockForm.ingredientId);
-      if (targetIng) {
-        let newStock = targetIng.stockQuantity;
-        if (stockForm.type === "IMPORT") newStock += stockForm.quantity;
-        else if (stockForm.type === "EXPORT") newStock -= stockForm.quantity;
-        else newStock = stockForm.quantity;
-
-        setIngredients((prev) =>
-          prev.map((i) =>
-            i.id === stockForm.ingredientId ? { ...i, stockQuantity: newStock } : i
-          )
-        );
-      }
-      setTransactions((prev) => [
-        {
-          id: Date.now(),
-          ingredient: targetIng,
-          type: stockForm.type,
-          quantity: stockForm.quantity,
-          note: stockForm.note,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
-      setStockModalOpen(false);
-      addToast("success", "Đã cập nhật kho (local)");
+      await createStockTransaction(stock);
+      setStockOpen(false);
+      setRevision((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không lưu được giao dịch");
+    } finally {
+      setBusy(false);
     }
-  };
-
-  // Recipe (BOM) Handlers
-  const handleOpenAddRecipe = () => {
-    setEditingRecipe(null);
-    setRecipeForm({
-      foodId: selectedFoodId || foods[0]?.id || 0,
-      ingredientId: ingredients[0]?.id || 0,
-      quantityRequired: 0.2,
-    });
-    setRecipeModalOpen(true);
-  };
-
-  const handleOpenEditRecipe = (r: Recipe) => {
-    setEditingRecipe(r);
-    setRecipeForm({
-      foodId: r.food?.id || selectedFoodId,
-      ingredientId: r.ingredient?.id || 0,
-      quantityRequired: r.quantityRequired,
-    });
-    setRecipeModalOpen(true);
-  };
-
-  const handleSaveRecipe = async () => {
-    if (!recipeForm.ingredientId) {
-      addToast("error", "Vui lòng chọn nguyên liệu");
-      return;
-    }
-    if (recipeForm.quantityRequired <= 0) {
-      addToast("error", "Số lượng định lượng phải lớn hơn 0");
-      return;
-    }
-    try {
-      if (editingRecipe) {
-        await updateRecipe(editingRecipe.id, recipeForm);
-      } else {
-        await createRecipe(recipeForm);
-      }
-      addToast("success", "Lưu định lượng BOM thành công");
-      setRecipeModalOpen(false);
-      setRecipeVersion(v => v + 1);
-    } catch {
-      const ing = ingredients.find((i) => i.id === recipeForm.ingredientId);
-      const food = foods.find((f) => f.id === recipeForm.foodId);
-      if (editingRecipe) {
-        setRecipes((prev) =>
-          prev.map((r) =>
-            r.id === editingRecipe.id
-              ? { ...r, ingredient: ing, quantityRequired: recipeForm.quantityRequired }
-              : r
-          )
-        );
-      } else {
-        setRecipes((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            food,
-            ingredient: ing,
-            quantityRequired: recipeForm.quantityRequired,
-          },
-        ]);
-      }
-      setRecipeModalOpen(false);
-      addToast("success", "Lưu định lượng BOM thành công (local)");
-    }
-  };
-
-  const handleDeleteRecipe = async (r: Recipe) => {
-    if (!window.confirm(`Xóa định lượng "${r.ingredient?.name}" của món này?`)) return;
-    try {
-      await deleteRecipe(r.id);
-      addToast("success", "Đã xóa định lượng");
-      setRecipeVersion(v => v + 1);
-    } catch {
-      setRecipes((prev) => prev.filter((x) => x.id !== r.id));
-      addToast("info", "Đã xóa định lượng (local)");
-    }
-  };
-
-  // Columns definition
-  const ingColumns: Column<Ingredient>[] = [
-    { key: "name", header: "Nguyên liệu", className: "strong" },
-    { key: "unit", header: "Đơn vị" },
-    {
-      key: "stockQuantity",
-      header: "Tồn kho",
-      render: (i) => (
-        <span
-          className={
-            i.stockQuantity <= i.minThreshold
-              ? "text-danger strong"
-              : "strong"
-          }
-        >
-          {formatNumber(i.stockQuantity)}
-        </span>
-      ),
-    },
-    {
-      key: "minThreshold",
-      header: "Ngưỡng tối thiểu",
-      render: (i) => formatNumber(i.minThreshold),
-    },
-    {
-      key: "status",
-      header: "Trạng thái",
-      render: (i) =>
-        i.stockQuantity <= i.minThreshold ? (
-          <span className="badge low">Sắp hết</span>
-        ) : (
-          <span className="badge">Đủ hàng</span>
-        ),
-    },
-  ];
-
-  const recipeColumns: Column<Recipe>[] = [
-    { key: "food", header: "Món ăn", className: "strong", render: r => r.food?.name || "—" },
-    { key: "ingredient", header: "Nguyên liệu", render: r => r.ingredient?.name || "—" },
-    { key: "quantityRequired", header: "Định lượng", render: r => `${formatNumber(r.quantityRequired)} ${r.ingredient?.unit || ""}` },
-  ];
-
-  const transColumns: Column<StockTransaction>[] = [
-    {
-      key: "createdAt",
-      header: "Thời gian",
-      render: (t) => formatDateTime(t.createdAt),
-    },
-    {
-      key: "ingredient",
-      header: "Nguyên liệu",
-      className: "strong",
-      render: (t) => t.ingredient?.name || "-",
-    },
-    {
-      key: "type",
-      header: "Loại",
-      render: (t) => {
-        if (t.type === "IMPORT")
-          return <span className="badge">Nhập kho</span>;
-        if (t.type === "EXPORT")
-          return <span className="badge badge-neutral">Xuất kho</span>;
-        return <span className="badge badge-neutral">Điều chỉnh</span>;
-      },
-    },
-    {
-      key: "quantity",
-      header: "Số lượng",
-      render: (t) => (
-        <span className="strong">
-          {t.type === "EXPORT" ? "-" : "+"}
-          {formatNumber(t.quantity)} {t.ingredient?.unit || ""}
-        </span>
-      ),
-    },
-    {
-      key: "note",
-      header: "Ghi chú",
-      render: (t) => <span className="text-muted">{t.note || "-"}</span>,
-    },
-  ];
-
-  const selectedFood = foods.find((f) => f.id === selectedFoodId);
-
+  }
+  const rows = ingredients.filter(
+    (i) =>
+      i.name.toLowerCase().includes(search.toLowerCase()) &&
+      (!low || i.stockQuantity <= i.minThreshold),
+  );
+  const history = [...transactions]
+    .filter((t) => !day || t.createdAt?.slice(0, 10) === day)
+    .sort(
+      (a, b) =>
+        (b.createdAt || "").localeCompare(a.createdAt || "") || b.id - a.id,
+    );
   return (
-    <div className="inventory-page">
-      <Toast toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
-
+    <div>
       <PageHeader
-        title={{ ingredients: "Nguyên liệu", recipes: "Công thức món ăn", history: "Lịch sử kho" }[tab] ?? "Kho"}
-        subtitle={{ ingredients: `${ingredients.length} nguyên liệu trong kho`, recipes: "Nguyên liệu cần cho mỗi món", history: "Nhập, xuất và điều chỉnh kho" }[tab]}
+        title="Kho nguyên liệu"
+        subtitle="Công thức được quản lý trực tiếp trong từng món ăn"
       >
         <button
-          type="button"
           className="btn-outline"
-          onClick={() => handleOpenStockModal()}
+          onClick={() => {
+            setError("");
+            setStockOpen(true);
+          }}
         >
-          Nhập kho
+          Ghi nhận giao dịch kho
         </button>
-        {tab === "ingredients" && (
-          <button type="button" className="btn-primary" onClick={handleOpenAddIng}>
-            + Thêm nguyên liệu
-          </button>
-        )}
-        {tab === "recipes" && (
-          <button type="button" className="btn-primary" onClick={handleOpenAddRecipe}>
-            + Thêm công thức
-          </button>
-        )}
+        <button
+          className="btn-primary"
+          onClick={() => {
+            setEditing(null);
+            setForm({
+              name: "",
+              unit: "kg",
+              stockQuantity: 0,
+              minThreshold: 0,
+            });
+            setError("");
+            setOpen(true);
+          }}
+        >
+          Thêm nguyên liệu
+        </button>
       </PageHeader>
-
-      <Tabs tabs={TABS} value={tab} onChange={setTab} />
-
-      {/* TAB 1: NGUYÊN LIỆU */}
-      {tab === "ingredients" && (
+      {error && (
+        <p role="alert" className="text-danger">
+          {error}
+        </p>
+      )}
+      <div className="tabs">
+        <button
+          className={`tab ${tab === "ingredients" ? "active" : ""}`}
+          onClick={() => setTab("ingredients")}
+        >
+          Nguyên liệu
+        </button>
+        <button
+          className={`tab ${tab === "history" ? "active" : ""}`}
+          onClick={() => setTab("history")}
+        >
+          Lịch sử kho
+        </button>
+      </div>
+      {loading ? (
+        <p role="status">Đang tải kho...</p>
+      ) : tab === "ingredients" ? (
         <>
-          <details className="extra-tools"><summary>Tìm kiếm & lọc tồn kho</summary>
           <div className="toolbar">
             <input
-              className="field wide"
+              className="field"
               placeholder="Tìm nguyên liệu..."
-              value={searchIng}
-              onChange={(e) => setSearchIng(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
-            <button
-              type="button"
-              className={`btn-outline ${filterLowStock ? "btn-active" : ""}`}
-              onClick={() => setFilterLowStock(!filterLowStock)}
-            >
-              {filterLowStock ? "✓ Đang lọc: Sắp hết hàng" : "Nguyên liệu sắp hết"}
-            </button>
+            <label>
+              <input
+                type="checkbox"
+                checked={low}
+                onChange={(e) => setLow(e.target.checked)}
+              />{" "}
+              Chỉ tồn kho thấp
+            </label>
           </div>
-          </details>
-
-          <DataTable
-            columns={ingColumns}
-            rows={filteredIngredients}
-            empty="Không tìm thấy nguyên liệu nào phù hợp"
-            actions={(ing) => (
-              <div className="row-actions">
-                <RowActions
-                  onEdit={() => handleOpenEditIng(ing)}
-                  onDelete={() => handleDeleteIng(ing)}
-                />
-              </div>
+          <div className="card table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Nguyên liệu</th>
+                  <th>Tồn kho</th>
+                  <th>Ngưỡng cảnh báo</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((i) => (
+                  <tr key={i.id}>
+                    <td>{i.name}</td>
+                    <td>
+                      {formatNumber(i.stockQuantity)} {i.unit}
+                      {i.stockQuantity <= i.minThreshold ? " · Tồn thấp" : ""}
+                    </td>
+                    <td>
+                      {i.minThreshold} {i.unit}
+                    </td>
+                    <td>
+                      <button
+                        className="link"
+                        onClick={() => {
+                          setEditing(i);
+                          setForm({
+                            name: i.name,
+                            unit: i.unit,
+                            stockQuantity: i.stockQuantity,
+                            minThreshold: i.minThreshold,
+                          });
+                          setError("");
+                          setOpen(true);
+                        }}
+                      >
+                        Sửa
+                      </button>{" "}
+                      <button
+                        className="link text-danger"
+                        onClick={() => remove(i)}
+                      >
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!rows.length && (
+              <p className="empty">Không có nguyên liệu phù hợp.</p>
             )}
-          />
+          </div>
         </>
-      )}
-
-      {/* TAB 2: ĐỊNH LƯỢNG MÓN (BOM) */}
-      {tab === "recipes" && (
+      ) : (
         <>
-          <details className="extra-tools"><summary>Lọc theo món ăn</summary>
-            <select className="field" aria-label="Lọc công thức theo món ăn" value={selectedFoodId} onChange={e => setSelectedFoodId(Number(e.target.value))}>
-              <option value={0}>Tất cả món ăn</option>
-              {foods.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          </details>
-          <DataTable
-            columns={recipeColumns}
-            rows={recipes}
-            empty={`Món "${selectedFood?.name || "này"}" chưa được khai báo công thức định lượng (BOM).`}
-            actions={(r) => (
-              <RowActions
-                onEdit={() => handleOpenEditRecipe(r)}
-                onDelete={() => handleDeleteRecipe(r)}
+          <div className="toolbar">
+            <label>
+              Ngày giao dịch{" "}
+              <input
+                aria-label="Ngày giao dịch"
+                type="date"
+                className="field"
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
               />
+            </label>
+            <button className="btn-outline" onClick={() => setDay("")}>
+              Tất cả ngày
+            </button>
+          </div>
+          <p>{history.length} giao dịch · Mới nhất trước</p>
+          <div className="card table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Thời điểm</th>
+                  <th>Nguyên liệu</th>
+                  <th>Loại</th>
+                  <th>Số lượng</th>
+                  <th>Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((t) => (
+                  <tr key={t.id}>
+                    <td>{formatDateTime(t.createdAt)}</td>
+                    <td>{t.ingredient?.name}</td>
+                    <td>
+                      {
+                        {
+                          IMPORT: "Nhập kho",
+                          EXPORT: "Xuất kho",
+                          ADJUST: "Điều chỉnh",
+                        }[t.type]
+                      }
+                    </td>
+                    <td>
+                      {t.quantity} {t.ingredient?.unit}
+                    </td>
+                    <td>
+                      {t.note ||
+                        `Giao dịch ${t.quantity} ${t.ingredient?.unit || ""} ${t.ingredient?.name || "nguyên liệu"}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!history.length && (
+              <p className="empty">Không có giao dịch trong ngày đã chọn.</p>
             )}
-          />
+          </div>
         </>
       )}
-
-      {/* TAB 3: LỊCH SỬ KHO */}
-      {tab === "history" && (
-        <DataTable
-          columns={transColumns}
-          rows={transactions}
-          empty="Chưa có lịch sử nhập/xuất kho nào"
-        />
-      )}
-
-      {/* MODAL THÊM / SỬA NGUYÊN LIỆU */}
       <Modal
-        isOpen={ingModalOpen}
-        onClose={() => setIngModalOpen(false)}
-        title={editingIng ? "Sửa nguyên liệu" : "Thêm nguyên liệu mới"}
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title={editing ? "Sửa nguyên liệu" : "Thêm nguyên liệu"}
         footer={
-          <>
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={() => setIngModalOpen(false)}
-            >
-              Hủy
-            </button>
-            <button type="button" className="btn-primary" onClick={handleSaveIng}>
-              Lưu nguyên liệu
-            </button>
-          </>
+          <button
+            className="btn-primary"
+            disabled={busy}
+            onClick={saveIngredient}
+          >
+            Lưu nguyên liệu
+          </button>
         }
       >
-        <div className="form-group">
-          <label className="form-label">Nguyên liệu *</label>
-          <input
-            type="text"
-            className="field wide"
-            placeholder="Ví dụ: Thịt bò, Mực tươi, Rau xà lách, Sốt tiêu đen..."
-            value={ingForm.name}
-            onChange={(e) => setIngForm({ ...ingForm, name: e.target.value })}
-          />
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Đơn vị *</label>
-            <input
-              type="text"
-              className="field wide"
-              placeholder="kg, lít, quả, hộp, gói..."
-              value={ingForm.unit}
-              onChange={(e) => setIngForm({ ...ingForm, unit: e.target.value })}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Tồn kho ban đầu</label>
-            <input
-              type="number"
-              step="0.1"
-              className="field wide"
-              value={ingForm.stockQuantity || ""}
-              onChange={(e) =>
-                setIngForm({ ...ingForm, stockQuantity: Number(e.target.value) })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Ngưỡng tối thiểu (Min threshold)</label>
-          <input
-            type="number"
-            step="0.1"
-            className="field wide"
-            placeholder="2"
-            value={ingForm.minThreshold || ""}
-            onChange={(e) =>
-              setIngForm({ ...ingForm, minThreshold: Number(e.target.value) })
-            }
-          />
-          <p className="form-hint">
-            * Khi số lượng tồn thực tế nhỏ hơn hoặc bằng ngưỡng này, hệ thống sẽ tự động bật cảnh báo sắp hết hàng cho Admin.
+        {error && (
+          <p role="alert" className="text-danger">
+            {error}
           </p>
-        </div>
-      </Modal>
-
-      {/* MODAL GIAO DỊCH KHO */}
-      <Modal
-        isOpen={stockModalOpen}
-        onClose={() => setStockModalOpen(false)}
-        title="Ghi nhận Giao dịch Kho"
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={() => setStockModalOpen(false)}
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSaveStockTransaction}
-            >
-              Xác nhận ghi nhận
-            </button>
-          </>
-        }
-      >
-        <div className="form-group">
-          <label className="form-label">Chọn nguyên liệu *</label>
-          <select
-            className="field wide"
-            value={stockForm.ingredientId}
-            onChange={(e) =>
-              setStockForm({ ...stockForm, ingredientId: Number(e.target.value) })
-            }
-          >
-            {ingredients.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name} (Tồn hiện tại: {formatNumber(i.stockQuantity)})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Loại *</label>
-            <select
-              className="field wide"
-              value={stockForm.type}
-              onChange={(e) =>
-                setStockForm({
-                  ...stockForm,
-                  type: e.target.value as StockTransactionType,
-                })
-              }
-            >
-              <option value="IMPORT">Nhập kho (Tăng số lượng)</option>
-              <option value="EXPORT">Xuất kho / Hủy hỏng (Giảm số lượng)</option>
-              <option value="ADJUST">Điều chỉnh tăng tồn kho</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Số lượng *</label>
-            <input
-              type="number"
-              step="0.1"
-              min="0.1"
-              className="field wide"
-              value={stockForm.quantity || ""}
-              onChange={(e) =>
-                setStockForm({ ...stockForm, quantity: Number(e.target.value) })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Lý do / Ghi chú</label>
+        )}
+        <label className="form-group">
+          Tên nguyên liệu
           <input
-            type="text"
             className="field wide"
-            placeholder="Ví dụ: Nhập hàng sáng từ NCC Vissan, Hao hụt cuối ngày..."
-            value={stockForm.note}
-            onChange={(e) => setStockForm({ ...stockForm, note: e.target.value })}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-        </div>
+        </label>
+        <label className="form-group">
+          Đơn vị
+          <input
+            className="field wide"
+            value={form.unit}
+            onChange={(e) => setForm({ ...form, unit: e.target.value })}
+          />
+        </label>
+        <label className="form-group">
+          Tồn kho
+          <input
+            className="field wide"
+            type="number"
+            min="0"
+            step="0.001"
+            value={form.stockQuantity}
+            onChange={(e) =>
+              setForm({ ...form, stockQuantity: Number(e.target.value) })
+            }
+          />
+        </label>
+        <label className="form-group">
+          Ngưỡng tồn thấp
+          <input
+            className="field wide"
+            type="number"
+            min="0"
+            step="0.001"
+            value={form.minThreshold}
+            onChange={(e) =>
+              setForm({ ...form, minThreshold: Number(e.target.value) })
+            }
+          />
+        </label>
       </Modal>
-
-      {/* MODAL ĐỊNH LƯỢNG MÓN (BOM) */}
       <Modal
-        isOpen={recipeModalOpen}
-        onClose={() => setRecipeModalOpen(false)}
-        title={editingRecipe ? "Sửa công thức" : "Thêm công thức"}
+        isOpen={stockOpen}
+        onClose={() => setStockOpen(false)}
+        title="Ghi nhận giao dịch kho"
         footer={
-          <>
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={() => setRecipeModalOpen(false)}
-            >
-              Hủy
-            </button>
-            <button type="button" className="btn-primary" onClick={handleSaveRecipe}>
-              Lưu định lượng
-            </button>
-          </>
+          <button className="btn-primary" disabled={busy} onClick={saveStock}>
+            Lưu giao dịch
+          </button>
         }
       >
-        <div className="form-group"><label className="form-label" htmlFor="recipe-food">Món ăn</label>
-          <select id="recipe-food" className="field wide" value={recipeForm.foodId} disabled={!!editingRecipe}
-            onChange={e => setRecipeForm({ ...recipeForm, foodId: Number(e.target.value) })}>
-            {foods.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select></div>
-        <div className="form-group">
-          <label className="form-label">Chọn nguyên liệu cần dùng *</label>
+        {error && (
+          <p role="alert" className="text-danger">
+            {error}
+          </p>
+        )}
+        <label className="form-group">
+          Nguyên liệu
           <select
             className="field wide"
-            value={recipeForm.ingredientId}
+            value={stock.ingredientId}
             onChange={(e) =>
-              setRecipeForm({ ...recipeForm, ingredientId: Number(e.target.value) })
+              setStock({ ...stock, ingredientId: Number(e.target.value) })
             }
           >
+            <option value={0}>Chọn nguyên liệu</option>
             {ingredients.map((i) => (
               <option key={i.id} value={i.id}>
                 {i.name} ({i.unit})
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Số lượng cần cho 1 suất món ăn *</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
+        </label>
+        <label className="form-group">
+          Loại giao dịch
+          <select
             className="field wide"
-            placeholder="0.2 (kg) hoặc 200 (gram)..."
-            value={recipeForm.quantityRequired || ""}
+            value={stock.type}
             onChange={(e) =>
-              setRecipeForm({
-                ...recipeForm,
-                quantityRequired: Number(e.target.value),
+              setStock({
+                ...stock,
+                type: e.target.value as StockTransactionType,
               })
             }
+          >
+            <option value="IMPORT">Nhập kho</option>
+            <option value="EXPORT">Xuất kho / Hao hụt</option>
+            <option value="ADJUST">Điều chỉnh tăng</option>
+          </select>
+        </label>
+        <label className="form-group">
+          Số lượng
+          <input
+            className="field wide"
+            type="number"
+            min="0.001"
+            step="0.001"
+            value={stock.quantity}
+            onChange={(e) =>
+              setStock({ ...stock, quantity: Number(e.target.value) })
+            }
           />
-          <p className="form-hint">
-            * Lưu ý nhập đúng theo đơn vị tính của nguyên liệu đã khai báo.
-          </p>
-        </div>
+        </label>
+        <label className="form-group">
+          Ghi chú bổ sung
+          <textarea
+            className="field wide"
+            value={stock.note}
+            onChange={(e) => setStock({ ...stock, note: e.target.value })}
+          />
+        </label>
+        <p>
+          Hệ thống tự ghi chi tiết nguyên liệu, số lượng và đơn vị kể cả khi để
+          trống ghi chú.
+        </p>
       </Modal>
     </div>
   );

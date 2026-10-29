@@ -1,29 +1,29 @@
 # Hướng dẫn chạy và sử dụng Admin / Quản lý
 
-Tài liệu đối chiếu với code trên nhánh `nam_merge`, cập nhật ngày 27/10/2026.
+Tài liệu đối chiếu với code trên nhánh `luong_merge_test`, cập nhật ngày 29/10/2026.
 
 ## 1. Giới thiệu
 
 Admin/Quản lý là phân hệ cấu hình dữ liệu vận hành nhà hàng Smart POS: khu bếp, thực đơn, nguyên liệu, công thức, tồn kho, bàn, tài khoản và nhật ký. Theo [đặc tả chức năng](DACN-08-Dac-Ta-Chuc-Nang.md), Admin và Quản lý dùng chung phân hệ; quyền truy cập hiện tại là `ADMIN`.
 
-Frontend dùng React + TypeScript + Vite; backend dùng Spring Boot, Java 21, Spring Security/JWT và MySQL 8. Giao diện gọi API thật và backend lưu dữ liệu vào MySQL. Tuy nhiên, một số màn hình vẫn có dữ liệu mẫu và cập nhật local khi API lỗi; xem mục 8 để hiểu giới hạn của bản này.
+Frontend dùng React + TypeScript + Vite; backend dùng Spring Boot, Java 21, Spring Security/JWT và MySQL 8. Giao diện gọi API thật và backend lưu dữ liệu vào MySQL. Các màn hình Admin báo lỗi khi API thất bại; không giả lập lưu thành công bằng dữ liệu local.
 
-Project Admin nằm hoàn toàn trong `frontend/admin` với `package.json`, cấu hình Vite/TypeScript, mã nguồn và Dockerfile riêng. `frontend/kds` là project cùng cấp; Customer khi tích hợp sẽ nằm ở `frontend/customer`. Admin không import hoặc bọc hai ứng dụng này.
+Project Admin nằm hoàn toàn trong `frontend/admin` với `package.json`, cấu hình Vite/TypeScript, mã nguồn riêng. `frontend/kds` là project cùng cấp; Customer khi tích hợp sẽ nằm ở `frontend/customer`. Admin không import hoặc bọc hai ứng dụng này.
 
 ## 2. Chạy bằng Docker trên macOS và Windows
 
 Cài Git và Docker Desktop, mở Docker Desktop trước khi chạy. Các lệnh dưới đây dùng được trong Terminal macOS và PowerShell Windows. Docker tự build Java/Node nên không cần cài Java hoặc Node trên máy nếu chỉ chạy ứng dụng.
 
 ```sh
-git clone --branch nam_merge https://github.com/LLiang-g/DACN_RESTAURANT_MANAGEMENT.git
+git clone --branch luong_merge_test https://github.com/LLiang-g/DACN_RESTAURANT_MANAGEMENT.git
 cd DACN_RESTAURANT_MANAGEMENT
 docker compose up --build -d
 docker compose ps
 ```
 
-Nếu đã có repository, chuyển sang nhánh `nam_merge` và cập nhật code sau khi đã lưu các thay đổi riêng của mình; không cần clone lại.
+Nếu đã có repository, chuyển sang nhánh `luong_merge_test` và cập nhật code sau khi đã lưu các thay đổi riêng của mình; không cần clone lại.
 
-Lần đầu cần tải image, thư viện và nhập database mẫu nên có thể mất vài phút. Mở **http://localhost/** để đăng nhập. Nếu backend chưa sẵn sàng, xem log:
+Lần đầu cần tải image, thư viện và nhập database mẫu nên có thể mất vài phút. Mở **http://localhost:5176/** để đăng nhập. Nếu backend chưa sẵn sàng, xem log:
 
 ```sh
 docker compose logs --tail=100 backend mysql-db
@@ -32,12 +32,12 @@ docker compose logs -f backend
 
 | Thành phần | Địa chỉ mặc định | Ghi chú |
 |---|---|---|
-| Trang Admin | http://localhost/ | Frontend Nginx, cổng 80 |
-| API qua frontend | http://localhost/api/admin/foods | Cần token Admin |
+| Trang Admin | http://localhost:5176/ | Frontend Nginx, cổng 5176 |
+| API qua frontend | http://localhost:5176/api/admin/foods | Cần token Admin |
 | Backend trực tiếp | http://localhost:8080/api/admin/foods | Cần token Admin; `/` của backend không phải trang web |
 | MySQL | `127.0.0.1:3307` | Database `smart_pos_kds`, user `root`, mật khẩu demo `123456` |
 
-Database được khởi tạo từ `sample_database.26.7.10.sql` khi volume MySQL mới được tạo. Build lại không tự nhập lại dữ liệu và không ghi đè database đang có.
+Database được khởi tạo từ `database/init/sample_database.26.10.11.sql` khi volume MySQL mới được tạo. Build lại không tự nhập lại dữ liệu và không ghi đè database đang có.
 
 Dừng dịch vụ và giữ dữ liệu:
 
@@ -48,12 +48,12 @@ docker compose down
 Không thêm `-v` nếu muốn giữ database. Nếu trùng cổng, tạo file `.env` ở thư mục gốc, ví dụ:
 
 ```dotenv
-FRONTEND_PORT=8088
+ADMIN_PORT=8088
 BACKEND_PORT=8081
 MYSQL_PORT=3308
 ```
 
-Sau đó chạy lại `docker compose up --build -d`; trang Admin đổi thành `http://localhost:8088/`. Các URL trong tài liệu mặc định dùng cổng 80.
+Sau đó chạy lại `docker compose up --build -d`; trang Admin đổi thành `http://localhost:8088/`. Các URL trong tài liệu mặc định dùng cổng 5176.
 
 ## 3. Đăng nhập và mật khẩu
 
@@ -87,23 +87,23 @@ Giao diện sử dụng **hash routing**: phải có `#/` trong URL. Các tab v�
 
 | Chức năng | URL đầy đủ | Cách mở và nội dung |
 |---|---|---|
-| Đăng nhập | http://localhost/ | Nhập tài khoản Admin khi chưa đăng nhập |
-| Dashboard | http://localhost/#/dashboard | Tổng quan món, nguyên liệu, tồn thấp, bàn và khu bếp |
-| Khu bếp | http://localhost/#/kitchen | Tab **Khu bếp**: xem, thêm, sửa, xóa khu bếp |
-| Tài khoản bếp | http://localhost/#/kitchen | Tab **Tài khoản bếp**: tạo/sửa/xóa tài khoản, gán khu bếp |
-| Món ăn | http://localhost/#/menu | Tab **Món ăn**: tên, danh mục, giá, ảnh, mô tả, thời gian nấu |
-| Danh mục | http://localhost/#/menu | Tab **Danh mục**: tạo/sửa/xóa, gán khu bếp phụ trách |
-| Nhóm tùy chọn | http://localhost/#/menu | Tab **Nhóm option**: cấu hình chọn một hoặc chọn nhiều |
-| Tùy chọn món | http://localhost/#/menu | Tab **Option**: gán món/nhóm, chênh lệch giá, hệ số BOM, thêm/bớt nguyên liệu |
-| Combo | http://localhost/#/menu | Tab **Combo**: tên, kiểu giá; bấm số món để thêm/xóa món con và số lượng |
-| Nguyên liệu | http://localhost/#/inventory | Tab **Nguyên liệu**: tên, đơn vị, tồn kho, ngưỡng tồn thấp; tìm kiếm/lọc tồn thấp |
-| Công thức BOM | http://localhost/#/inventory | Tab **Công thức**: chọn món, thêm/sửa/xóa nguyên liệu và định lượng |
-| Giao dịch và lịch sử kho | http://localhost/#/inventory | Nút ghi nhận giao dịch kho; tab **Lịch sử kho** để xem nhập/xuất/điều chỉnh, số lượng, ghi chú, thời điểm |
-| Bàn ăn | http://localhost/#/tables | Thêm/sửa/xóa bàn; tầng, số bàn, trạng thái AVAILABLE/SERVING; lọc theo tầng/trạng thái |
-| QR một bàn | http://localhost/#/tables | Nút **Mã QR** của bàn → xem/in mã |
-| QR nhiều bàn | http://localhost/#/tables | Mở **Bộ lọc & Mã QR**, chọn bàn → **In mã QR** → hộp thoại in (có thể lưu PDF) |
-| Tài khoản nhân viên | http://localhost/#/staff | Tạo/sửa/xóa tài khoản, tên đăng nhập, mật khẩu, vai trò; đây không phải quản lý lương/ca làm |
-| Nhật ký hoạt động | http://localhost/#/staff | Nút **Nhật ký hoạt động**: hành động, tài khoản thực hiện, đối tượng, nội dung và thời điểm |
+| Đăng nhập | http://localhost:5176/ | Nhập tài khoản Admin khi chưa đăng nhập |
+| Dashboard | http://localhost:5176/#/dashboard | Tổng quan món, nguyên liệu, tồn thấp, bàn và khu bếp |
+| Khu bếp | http://localhost:5176/#/kitchen | Tab **Khu bếp**: xem, thêm, sửa, xóa khu bếp |
+| Tài khoản bếp | http://localhost:5176/#/kitchen | Tab **Tài khoản bếp**: tạo/sửa/xóa tài khoản, gán khu bếp |
+| Món ăn | http://localhost:5176/#/menu | Tab **Món ăn**: tên, danh mục, giá, ảnh, mô tả, thời gian nấu |
+| Danh mục | http://localhost:5176/#/menu | Tab **Danh mục**: tạo/sửa/xóa, gán khu bếp phụ trách |
+| Nhóm tùy chọn | http://localhost:5176/#/menu | Tab **Nhóm option**: cấu hình chọn một hoặc chọn nhiều |
+| Tùy chọn món | http://localhost:5176/#/menu | Tab **Option**: gán món/nhóm, chênh lệch giá, hệ số BOM, thêm/bớt nguyên liệu |
+| Combo | http://localhost:5176/#/menu | Tab **Combo**: tên, kiểu giá; bấm **Quản lý món** để thêm/xóa món con và số lượng |
+| Nguyên liệu | http://localhost:5176/#/inventory | Tab **Nguyên liệu**: tên, đơn vị, tồn kho, ngưỡng tồn thấp; tìm kiếm/lọc tồn thấp |
+| Công thức BOM | http://localhost:5176/#/menu | Nút **Công thức** cạnh món hoặc trong hộp thoại sửa món: thêm/sửa/xóa nguyên liệu và định lượng |
+| Giao dịch và lịch sử kho | http://localhost:5176/#/inventory | Nút ghi nhận giao dịch kho; tab **Lịch sử kho** để xem nhập/xuất/điều chỉnh, số lượng, ghi chú, thời điểm |
+| Bàn ăn | http://localhost:5176/#/tables | Thêm/sửa/xóa bàn; tầng, số bàn; bàn mới luôn AVAILABLE; lọc theo tầng/trạng thái |
+| QR một bàn | http://localhost:5176/#/tables | Nút **Mã QR** của bàn → xem/in mã |
+| QR nhiều bàn | http://localhost:5176/#/tables | Mở **Bộ lọc & Mã QR**, chọn bàn → **In mã QR** → hộp thoại in (có thể lưu PDF) |
+| Tài khoản nhân viên | http://localhost:5176/#/staff | Tạo/sửa/xóa tài khoản, tên đăng nhập, mật khẩu, vai trò; đây không phải quản lý lương/ca làm |
+| Nhật ký hoạt động | http://localhost:5176/#/staff | Nút **Nhật ký hoạt động**: hành động, tài khoản thực hiện, đối tượng, nội dung và thời điểm |
 | Đăng xuất | Trong thanh điều hướng Admin | Xóa phiên và trở lại màn hình đăng nhập |
 
 Dashboard là số liệu tổng quan dữ liệu vận hành, chưa phải báo cáo doanh thu hoặc món bán chạy. Trang **Khu vực bếp** của Admin dùng để cấu hình khu bếp/tài khoản; màn hình KDS thao tác Nấu/Xong là phân hệ khác.
@@ -113,16 +113,16 @@ Dashboard là số liệu tổng quan dữ liệu vận hành, chưa phải báo
 1. Tạo khu bếp, sau đó tạo tài khoản bếp và gán vào khu tương ứng.
 2. Tạo danh mục món và chọn khu bếp phụ trách.
 3. Tạo nguyên liệu, đơn vị, tồn kho ban đầu và ngưỡng cảnh báo.
-4. Tạo món ăn và cấu hình công thức BOM ở trang Kho.
+4. Tạo món ăn và cấu hình công thức ngay trong trang Món ăn.
 5. Tạo nhóm option, các option của món; có thể đồng thời thay đổi giá và nguyên liệu.
 6. Tạo combo và thêm các món con kèm số lượng.
 7. Tạo bàn, tài khoản lễ tân, xem nhật ký để kiểm tra các thay đổi.
 
-Dữ liệu có quan hệ với nhau: xóa khu bếp/danh mục/nguyên liệu đang được tham chiếu có thể bị DB từ chối. Khi kiểm tra thao tác lưu, tải lại trang và kiểm tra phản hồi API hoặc dữ liệu DB, vì bản hiện tại còn fallback local.
+Dữ liệu có quan hệ với nhau: xóa khu bếp/danh mục/nguyên liệu đang được tham chiếu có thể bị DB từ chối. Khi kiểm tra thao tác lưu, tải lại trang và kiểm tra phản hồi API hoặc dữ liệu DB, để xác nhận dữ liệu đã lưu.
 
 ## 6. API Admin
 
-Địa chỉ backend mặc định là `http://localhost:8080`. Có thể dùng cùng đường dẫn qua frontend tại `http://localhost/api/...`. Ngoại trừ đăng nhập, API Admin yêu cầu header `Authorization: Bearer <token>` với quyền `ADMIN`.
+Địa chỉ backend mặc định là `http://localhost:8080`. Có thể dùng cùng đường dẫn qua frontend tại `http://localhost:5176/api/...`. Ngoại trừ đăng nhập, API Admin yêu cầu header `Authorization: Bearer <token>` với quyền `ADMIN`.
 
 Đăng nhập bằng `POST http://localhost:8080/api/admin/auth/login`, body JSON:
 
@@ -194,6 +194,8 @@ Lấy trường `token` trong phản hồi để gọi các API tiếp theo. `{i
 | PUT | `http://localhost:8080/api/admin/kitchen-accounts/{id}` |
 | DELETE | `http://localhost:8080/api/admin/kitchen-accounts/{id}` |
 | GET | `http://localhost:8080/api/admin/activity-logs` |
+| POST | `http://localhost:8080/api/admin/food-images` — multipart field `file`, cần ADMIN |
+| GET | `http://localhost:8080/api/customer/media/{filename}` — đọc ảnh công khai |
 
 ## 7. Phát triển và kiểm thử
 
@@ -206,7 +208,7 @@ npm ci
 npm run dev
 ```
 
-Mở `http://localhost:5173/`; các trang tương ứng là `http://localhost:5173/#/dashboard`, `http://localhost:5173/#/menu`... Vite chuyển `/api` sang backend `http://localhost:8080`. Nếu đổi BACKEND_PORT phải sửa đích proxy trong `frontend/admin/vite.config.ts` cho phù hợp.
+Mở `http://localhost:5176/`; các trang tương ứng là `http://localhost:5176/#/dashboard`, `http://localhost:5176/#/menu`... Vite chuyển `/api` sang backend `http://localhost:8080`. Nếu đổi cổng backend, đặt biến môi trường `ADMIN_API_TARGET` tương ứng trước khi chạy Vite.
 
 Kiểm tra frontend từ thư mục `frontend/admin`:
 
@@ -223,18 +225,41 @@ npm ci
 npm run verify
 ```
 
-Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `frontend/admin`, quay về thư mục gốc trước). Kết quả được ghi ở `tests/api/results/report.md`. Hướng dẫn import vào Postman và chạy trên Mac/Windows: [tests/api/README.md](tests/api/README.md). Bộ test bao phủ 76 endpoint REST với 108 lượt gọi; PASS không đồng nghĩa đã đáp ứng mọi yêu cầu nghiệp vụ. WebSocket và toàn bộ luồng giao diện chưa được bao phủ bởi bộ này.
+Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `frontend/admin`, quay về thư mục gốc trước). Kết quả được ghi ở `tests/api/results/report.md`. Hướng dẫn import vào Postman và chạy trên Mac/Windows: [tests/api/README.md](tests/api/README.md). Bộ test bao phủ 78 endpoint REST với 110 lượt gọi; PASS không đồng nghĩa đã đáp ứng mọi yêu cầu nghiệp vụ. WebSocket chưa được bao phủ. Bộ Playwright riêng kiểm tra các luồng Admin bên dưới.
 
-## 8. Các giới hạn đã xác định
+### Kiểm thử giao diện Admin
 
-- Một số màn hình Menu/Kho/Bàn/Tài khoản/Khu bếp có fallback dữ liệu mẫu hoặc thay đổi local khi API lỗi. Thông báo có chữ `(local)` không chứng minh DB đã lưu. Cần bỏ fallback này trước khi sử dụng thực tế.
-- BOM hiện giả định công thức và nguyên liệu cùng đơn vị; chưa tự đổi kg/gram hoặc lít/ml như đặc tả yêu cầu.
-- `ADJUST` ở BE hiện cộng lượng nhập vào tồn kho và chỉ nhận số dương. FE fallback lại hiểu là đặt tồn bằng số nhập. Chưa thống nhất nghiệp vụ kiểm kê/hao hụt.
-- Giá combo `FIXED` ở BE là **giá bán cố định**; FE hiện ghi “Giảm số tiền cố định”, cần sửa nhãn để tránh nhập sai.
-- QR hiện dùng dịch vụ `api.qrserver.com` và URL `${origin}/?table=<id>`. Với frontend Docker hiện tại, URL này trỏ vào ứng dụng Admin, chưa phải luồng khách gọi món hoàn chỉnh. Khi mở bằng localhost, QR cũng chứa localhost; chưa thể dùng link đó từ điện thoại khác.
-- Tài khoản demo `manager.*` đang được gán quyền lễ tân; Admin/Quản lý trong đặc tả là cùng nhóm quyền.
-- Báo cáo doanh thu/món bán chạy chưa triển khai đầy đủ; đặc tả xếp báo cáo vào chức năng mở rộng.
-- Chức năng duyệt đơn, phục vụ, thanh toán thuộc POS/Lễ tân, không nằm trong trang Admin. Nhật ký chỉ hiển thị các hành động mà module tương ứng đã ghi.
+Sau khi môi trường API thử ở cổng 18080 đã chạy, từ thư mục gốc:
+
+```sh
+npm ci --prefix frontend/admin
+cd frontend/admin
+npx playwright install chromium
+npm run test:e2e
+```
+
+Cổng 5176 cần trống để bộ test mở Vite riêng. Test kiểm tra upload ảnh, lưu công thức và món combo qua API, lọc nhật ký, toàn bộ tồn kho, mặc định bàn mới và bản in QR một/nhiều bàn. PDF/ảnh kiểm chứng nằm trong `frontend/admin/test-results/`. Test chỉ ghi dữ liệu vào DB thử ở 18080.
+
+## 8. Thay đổi Admin và giới hạn
+
+- Công thức nằm trong quản lý món ăn, có thể thêm/sửa/xóa định lượng ngay khi sửa món.
+- Ảnh món chọn từ máy (PNG/JPEG, tối đa 5 MB), được backend kiểm tra và lưu thành PNG với tên ngẫu nhiên. Bấm **Lưu món** để gắn URL vào DB. Docker giữ ảnh trong volume `admin_uploads`; cần sao lưu volume này cùng database. Không dùng `docker compose down -v` nếu cần giữ dữ liệu.
+- Combo có nút **Quản lý món** để thêm/xóa món và số lượng.
+- Nhật ký có bộ lọc ngày, mới nhất ở đầu, tên tài khoản/đối tượng và nội dung tự sinh. Các bản ghi mới giữ tên tại thời điểm thao tác; đối tượng lịch sử đã xóa trước bản cập nhật có thể chỉ hiện “đã xóa”. Tài khoản hiển thị tên đăng nhập vì mô hình hiện tại chưa có họ tên riêng.
+- Dashboard bỏ ô doanh thu, hiển thị toàn bộ nguyên liệu (tìm kiếm, cuộn danh sách) và hộp thoại nhật ký tổng hợp hoạt động + giao dịch kho. Một giao dịch kho có thể có cả bản ghi kho và bản ghi hoạt động, được phân biệt theo nguồn.
+- QR được tạo ngay trong trình duyệt, hỗ trợ in một/nhiều bàn. URL khách mặc định là cùng hostname, cổng 5173. Có thể đặt `VITE_CUSTOMER_URL` trong `frontend/admin/.env.local` trước khi build (ví dụ `http://192.168.1.10:5173/`). Dùng địa chỉ máy chủ truy cập được từ điện thoại; localhost chỉ dành cho chính máy đang mở. Nhánh này chưa có project Customer đầy đủ nên kiểm thử in QR không chứng minh luồng gọi món trên điện thoại đã hoàn thiện.
+- Bàn mới luôn AVAILABLE ở cả FE và BE; trạng thái phục vụ do nghiệp vụ vận hành xử lý.
+- BOM vẫn yêu cầu cùng đơn vị; chưa tự đổi kg/gram hoặc lít/ml. ADJUST hiện là điều chỉnh **tăng** bằng lượng dương, chưa phải đặt lại tồn kho sau kiểm kê.
+- Tài khoản demo `manager.*` có quyền lễ tân; đăng nhập Admin cần role ADMIN.
+- Chức năng duyệt đơn, phục vụ, thanh toán thuộc POS/Lễ tân. Nhật ký tổng hợp chỉ đọc các hành động mà các module đã ghi.
+
+### Kết quả kiểm chứng ngày 29/10/2026
+
+- Build Admin và Docker frontend thành công; backend đóng gói thành công trong môi trường thử.
+- API: 110 lượt gọi, 193 kiểm tra đạt trên database thử riêng.
+- Unit test: 9 kiểm tra FE và 16 kiểm tra backend đăng nhập/upload đạt.
+- Playwright: luồng Admin lưu ảnh/công thức/combo, nhật ký, tồn kho và xuất PDF QR đạt. Đây là kiểm tra bản in điện tử, chưa kiểm tra máy in vật lý.
+- `npm run lint` còn 3 lỗi Fast Refresh có sẵn trong `src/router/Router.tsx`; các file thay đổi không còn lỗi lint.
 
 ## 9. Xử lý lỗi thường gặp
 
@@ -245,7 +270,7 @@ Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `fron
 | API trả 401 | Đăng nhập lại và dùng token mới |
 | API trả 403 | Kiểm tra tài khoản có role ADMIN; không dùng tài khoản lễ tân/bếp cho Admin |
 | 404 khi mở chức năng | Dùng URL có `#/` theo bảng ở mục 4; API phải có tiền tố `/api/admin` |
-| Sửa xong tải lại bị mất | Kiểm tra API có lỗi và giao diện có thông báo `(local)` hay không |
+| Sửa xong tải lại bị mất | Kiểm tra thông báo lỗi API và quyền tài khoản |
 | Thay SQL mẫu nhưng DB không đổi | SQL init chỉ chạy khi volume mới; không tự xóa volume đang chứa dữ liệu cần giữ |
 | QR không dẫn tới trang gọi món | Đây là hạn chế tích hợp đã nêu ở mục 8 |
 
@@ -257,5 +282,5 @@ Chạy các lệnh trên từ thư mục gốc repository (nếu đang ở `fron
 - `src/main/java/com/sccgroup/restaurant_management/admin/`: controller, service, DTO, đăng nhập và phân quyền Admin.
 - `src/main/java/com/sccgroup/restaurant_management/domain/`: entity, repository và nghiệp vụ dùng chung.
 - `scripts/hash-admin-password.py`: tạo hash mật khẩu.
-- `docker-compose.yml`, `Dockerfile`, `frontend/admin/Dockerfile`: cấu hình chạy/build.
+- `docker-compose.yml`, `Dockerfile`, `frontend/Dockerfile`: cấu hình chạy/build.
 - `tests/api/`: collection, môi trường và bộ chạy API tự động.

@@ -1,6 +1,6 @@
 # Kiểm thử tất cả REST API Smart POS
 
-Bộ Postman bao phủ **76 endpoint REST** hiện có trong controller, gồm Admin, xác thực chung, khách hàng, bếp (KDS), và `/api/test`. Có **108 lượt gọi**, gồm CRUD, đọc lại dữ liệu đã ghi, kiểm tra quyền và một số đầu vào sai. Đây là kiểm thử tích hợp API; không có nghĩa đã kiểm tra mọi nhánh nghiệp vụ hoặc giao diện.
+Bộ Postman bao phủ **78 endpoint REST** hiện có trong controller, gồm Admin, xác thực chung, khách hàng, bếp (KDS), và `/api/test`. Có **110 lượt gọi**, gồm CRUD, đọc lại dữ liệu đã ghi, kiểm tra quyền và một số đầu vào sai. Đây là kiểm thử tích hợp API; không có nghĩa đã kiểm tra mọi nhánh nghiệp vụ hoặc giao diện.
 
 ## Chuẩn bị (Mac và Windows)
 
@@ -55,3 +55,5 @@ Có thể để môi trường thử đang chạy để xem request trong Postma
 - Không có endpoint POS/thanh toán trong các controller hiện tại; không tạo request giả để đủ số lượng.
 
 Nếu cổng 18080 bị chiếm, dừng dịch vụ đang chiếm cổng trước. Nếu backend không lên, xem `docker compose -f compose.yml logs backend db`. Không chạy riêng file `fixtures.sql` trên DB đang dùng.
+
+Request upload ảnh dùng `fixtures/food.png`. Trong Postman, đặt working directory là `tests/api` hoặc chọn lại file này tại trường multipart `file` trước khi chạy collection. Newman dùng fixture tự động.

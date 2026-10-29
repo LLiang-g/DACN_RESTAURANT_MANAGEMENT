@@ -31,21 +31,25 @@ req(a,'Wrong password','POST','/api/admin/auth/login',401,{'username':'{{adminUs
 req(a,'Missing credentials','POST','/api/admin/auth/login',400,{'username':'','password':''},None)
 req(a,'Admin requires authentication','GET','/api/admin/foods',401,token=None)
 req(a,'Invalid admin token','GET','/api/admin/foods',401,token='invalidToken')
+req(a,'Upload food image','POST','/api/admin/food-images',201,save={'uploadedImage':'data.url'})
+a[-1]['request']['body']={'mode':'formdata','formdata':[{'key':'file','type':'file','src':'fixtures/food.png'}]}
+req(a,'Read uploaded menu image','GET','{{uploadedImage}}',token=None,route='/api/customer/media/{filename}')
+a[-1]['event'][0]['script']['exec'].append('pm.test("Image is PNG", () => pm.expect(pm.response.headers.get("Content-Type")).to.include("image/png"));')
 # CRUD independent from customer/KDS fixtures, deleted in reverse dependency order.
 b=folder('02 · Admin CRUD và kiểm tra dữ liệu đã lưu')
 resources=[
 ('station','kitchen-stations',{'name':'API {{runId}} station'},{'name':'API {{runId}} station updated'},'name'),
 ('category','categories',{'name':'API {{runId}} category','stationId':'{{stationId}}'},{'name':'API {{runId}} category updated','stationId':'{{stationId}}'},'name'),
 ('ingredient','ingredients',{'name':'API {{runId}} ingredient','unit':'kg','stockQuantity':100,'minThreshold':1},{'name':'API {{runId}} ingredient updated','unit':'kg','stockQuantity':120,'minThreshold':2},'stockQuantity'),
-('food','foods',{'name':'API {{runId}} food','categoryId':'{{categoryId}}','price':10000,'estimatedCookingTime':5},{'name':'API {{runId}} food updated','categoryId':'{{categoryId}}','price':12000,'estimatedCookingTime':6},'price'),
+('food','foods',{'name':'API {{runId}} food','categoryId':'{{categoryId}}','price':10000,'estimatedCookingTime':5,'image':'{{uploadedImage}}'},{'name':'API {{runId}} food updated','categoryId':'{{categoryId}}','price':12000,'estimatedCookingTime':6,'image':'{{uploadedImage}}'},'price'),
 ('group','option-groups',{'name':'API {{runId}} group','selectionType':'SINGLE_CHOICE'},{'name':'API {{runId}} group updated','selectionType':'MULTI_CHOICE'},'selectionType'),
 ('option','options',{'foodId':'{{foodId}}','name':'Extra','groupId':'{{groupId}}','ingredientId':'{{ingredientId}}','adjustAmount':1,'adjustType':'ADD','priceDelta':1000,'scaleFactor':1},{'foodId':'{{foodId}}','name':'Extra updated','groupId':'{{groupId}}','ingredientId':'{{ingredientId}}','adjustAmount':2,'adjustType':'ADD','priceDelta':2000,'scaleFactor':1},'priceDelta'),
 ('combo','combos',{'name':'API {{runId}} combo','discountType':'PERCENT','discountValue':10},{'name':'API {{runId}} combo updated','discountType':'PERCENT','discountValue':20},'discountValue'),
-('table','tables',{'floor':'API {{runId}}','tableNumber':'CRUD','status':'AVAILABLE'},{'floor':'API {{runId}}','tableNumber':'CRUD updated','status':'SERVING'},'status')]
+('table','tables',{'floor':'API {{runId}}','tableNumber':'CRUD','status':'SERVING'},{'floor':'API {{runId}}','tableNumber':'CRUD updated','status':'SERVING'},'status')]
 for key,path,create,update,field in resources:
     route='/api/admin/'+path
     req(b,'List '+path,'GET',route,check='pm.expect(data).to.be.an("array");')
-    req(b,'Create '+key,'POST',route,201,create,save={key+'Id':'data.id'})
+    req(b,'Create '+key,'POST',route,201,create,save={key+'Id':'data.id'},check='pm.expect(data.status).to.eql("AVAILABLE");' if key == 'table' else '')
     req(b,'Read '+key,'GET',route+'/{{'+key+'Id}}',check=f'pm.expect(String(data.id)).to.eql(String(pm.collectionVariables.get("{key}Id")));')
     expected=json.dumps(update[field])
     if isinstance(update[field], str): expected = "pm.variables.replaceIn(" + expected + ")"
@@ -103,7 +107,7 @@ f=folder('06 · Xóa dữ liệu CRUD và kiểm tra nhật ký')
 for path in ['/combos/{{comboId}}/items/{{foodId}}','/recipes/{{recipeId}}','/options/{{optionId}}','/combos/{{comboId}}','/option-groups/{{groupId}}','/foods/{{foodId}}','/ingredients/{{ingredientId}}','/categories/{{categoryId}}','/kitchen-stations/{{stationId}}','/tables/{{tableId}}','/staff-accounts/{{staffId}}','/kitchen-accounts/{{kitchenId}}']:
     req(f,'Delete '+path,'DELETE','/api/admin'+path,204)
 req(f,'Verify deleted food','GET','/api/admin/foods/{{foodId}}',404)
-req(f,'Activity logs include test writes','GET','/api/admin/activity-logs',check='pm.expect(data.some(x => String(x.targetId) === String(pm.collectionVariables.get("foodId")))).to.eql(true);')
+req(f,'Activity logs include test writes','GET','/api/admin/activity-logs',check='pm.expect(data.some(x => String(x.targetId) === String(pm.collectionVariables.get("foodId")))).to.eql(true); pm.expect(data.every(x => x.detail && x.actorName && x.targetName)).to.eql(true); const deleted = data.find(x => x.action === "delete" && x.targetType === "food" && String(x.targetId) === String(pm.collectionVariables.get("foodId"))); pm.expect(deleted.targetName).to.include("API");')
 collection={'info':{'name':'Smart POS · All REST APIs · Isolated test','schema':'https://schema.getpostman.com/json/collection/v2.1.0/collection.json','description':'Run all folders in order, one iteration, against tests/api/compose.yml on localhost:18080. Mutates disposable data. HTTP 404 in intentional error tests is expected.'},'variable':[{'key':'invalidToken','value':'invalid-token'}], 'event':[{'listen':'prerequest','script':{'type':'text/javascript','exec':[
 'if (pm.environment.get("baseUrl") !== "http://localhost:18080" || pm.environment.get("testDatabase") !== "DISPOSABLE") { pm.execution.skipRequest(); throw new Error("Select the isolated API Test environment on localhost:18080. Never use the working DB."); }',
 'if (pm.info.requestName === "Admin login") { pm.collectionVariables.set("runId", Date.now().toString()); ["adminToken", "staffToken", "kitchenToken"].forEach(k => pm.collectionVariables.unset(k)); }'
@@ -118,7 +122,7 @@ for source in sorted((ROOT/'src/main/java').rglob('*Controller.java')):
     head=code.split('public class')[0]
     base=re.search(r'@RequestMapping\("([^"]*)"\)',head)
     base=base.group(1) if base else ''
-    for method,path in re.findall(r'@(Get|Post|Put|Delete|Patch)Mapping\("([^"]*)"\)',code):
+    for method,path in re.findall(r'@(Get|Post|Put|Delete|Patch)Mapping(?:\("([^"]*)"\))?(?=\s)',code):
         actual[(method.upper(),normalize(base+path))]=str(source.relative_to(ROOT))
 missing=set(actual)-coverage
 lines=['# REST endpoint coverage','',f'{len(actual)} distinct method + path mappings; {sum(len(f["item"]) for f in folders)} requests.','', '| Method | Path | In collection |','|---|---|---|']

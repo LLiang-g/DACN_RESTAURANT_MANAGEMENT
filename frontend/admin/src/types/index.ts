@@ -114,6 +114,9 @@ export interface KitchenAccount {
 }
 
 export interface ActivityLog {
+  actorName?: string;
+  targetName?: string;
+  actionName?: string;
   id: number;
   accountId: number;
   accountType: AccountType;

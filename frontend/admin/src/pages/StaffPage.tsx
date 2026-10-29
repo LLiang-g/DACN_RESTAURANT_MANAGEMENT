@@ -11,8 +11,8 @@ import {
   deleteStaffAccount,
   getActivityLogs,
 } from "../services/adminApi";
-import { mockStaffAccounts } from "../data/mock";
-import { formatDateTime } from "../utils/format";
+
+import ActivityJournal from "../components/admin/ActivityJournal";
 import type { StaffAccount, ActivityLog, StaffRole } from "../types";
 
 export default function StaffPage() {
@@ -42,19 +42,17 @@ export default function StaffPage() {
   const loadData = async () => {
     try {
       const [st, lg] = await Promise.all([
-        getStaffAccounts().catch(() => mockStaffAccounts),
-        getActivityLogs().catch(() => []),
+        getStaffAccounts().catch(error => { addToast("error", error.message); return []; }),
+        getActivityLogs().catch(error => { addToast("error", error.message); return []; }),
       ]);
       setStaffAccounts(st);
       setLogs(lg);
-    } catch {
-      setStaffAccounts(mockStaffAccounts);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   useEffect(() => {
     let active = true;
-    Promise.all([getStaffAccounts().catch(() => mockStaffAccounts), getActivityLogs().catch(() => [])])
+    Promise.all([getStaffAccounts().catch(error => { addToast("error", error.message); return []; }), getActivityLogs().catch(error => { addToast("error", error.message); return []; })])
       .then(([accounts, logs]) => { if (active) { setStaffAccounts(accounts); setLogs(logs); } });
     return () => { active = false; };
   }, []);
@@ -108,28 +106,7 @@ export default function StaffPage() {
       }
       setStaffModalOpen(false);
       loadData();
-    } catch {
-      if (editingStaff) {
-        setStaffAccounts((prev) =>
-          prev.map((s) =>
-            s.id === editingStaff.id
-              ? { ...s, username: staffForm.username, role: staffForm.role }
-              : s
-          )
-        );
-      } else {
-        setStaffAccounts((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            username: staffForm.username,
-            role: staffForm.role,
-          },
-        ]);
-      }
-      setStaffModalOpen(false);
-      addToast("success", "Lưu tài khoản thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteStaff = async (st: StaffAccount) => {
@@ -142,10 +119,7 @@ export default function StaffPage() {
       await deleteStaffAccount(st.id);
       addToast("success", `Đã xóa tài khoản "${st.username}"`);
       loadData();
-    } catch {
-      setStaffAccounts((prev) => prev.filter((x) => x.id !== st.id));
-      addToast("info", `Đã xóa tài khoản "${st.username}" (local)`);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const staffColumns: Column<StaffAccount>[] = [
@@ -160,43 +134,6 @@ export default function StaffPage() {
         ) : (
           <span className="badge badge-neutral">Lễ tân</span>
         ),
-    },
-  ];
-
-  const logColumns: Column<ActivityLog>[] = [
-    {
-      key: "createdAt",
-      header: "Thời điểm",
-      render: (l) => formatDateTime(l.createdAt),
-    },
-    {
-      key: "actor",
-      header: "Người thực hiện",
-      render: (l) => (
-        <span>
-          {l.accountType} #{l.accountId}
-        </span>
-      ),
-    },
-    {
-      key: "action",
-      header: "Hành động",
-      render: (l) => <span className="badge">{l.action.toUpperCase()}</span>,
-    },
-    {
-      key: "targetType",
-      header: "Đối tượng tác động",
-      className: "strong",
-      render: (l) => (
-        <span>
-          {l.targetType} {l.targetId ? `#${l.targetId}` : ""}
-        </span>
-      ),
-    },
-    {
-      key: "detail",
-      header: "Chi tiết nội dung",
-      render: (l) => <span className="text-muted">{l.detail || "-"}</span>,
     },
   ];
 
@@ -230,11 +167,7 @@ export default function StaffPage() {
           )}
         />
       ) : (
-        <DataTable
-          columns={logColumns}
-          rows={logs}
-          empty="Chưa ghi nhận hoạt động nào trong hệ thống"
-        />
+        <ActivityJournal />
       )}
 
       {/* MODAL THÊM / SỬA TÀI KHOẢN */}

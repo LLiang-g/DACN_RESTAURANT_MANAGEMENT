@@ -192,3 +192,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     stationsCount: stations.length,
   };
 }
+
+export async function uploadFoodImage(file: File): Promise<string> {
+  const body = new FormData();
+  body.append("file", file);
+  const result = await http<{url: string}>("/admin/food-images", {method: "POST", body});
+  return result.url;
+}

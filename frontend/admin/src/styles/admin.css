@@ -1139,38 +1139,17 @@ body {
 
 /* Print Mode for QR Cards */
 @media print {
-  body {
-    background: #fff;
-  }
-  .sidebar,
-  .page-head,
-  .toolbar,
-  .tabs,
-  .no-print,
-  .modal-backdrop,
-  .modal-head,
-  .modal-foot,
-  .toast-container {
-    display: none !important;
-  }
-  .modal-card {
-    box-shadow: none !important;
-    border: 0 !important;
-    max-height: none !important;
-    padding: 0 !important;
-  }
-  .batch-qr-grid {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 24px !important;
-    page-break-inside: auto;
-  }
-  .printable-card {
-    page-break-inside: avoid;
-    break-inside: avoid;
-    border: 2px solid #000 !important;
-    margin: 8px !important;
-  }
+  @page { size: A4; margin: 12mm; }
+  body { background: white !important; overflow: visible !important; }
+  body > #root { display: none !important; }
+  body * { visibility: hidden; }
+  .modal-backdrop, .modal-backdrop * { visibility: visible; }
+  .modal-backdrop { display: block !important; position: absolute !important; inset: 0 !important; background: white !important; padding: 0 !important; overflow: visible !important; }
+  .modal-card, .modal-body { display: block !important; width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; margin: 0 !important; }
+  .modal-head, .modal-foot, .no-print, .qr-actions { display: none !important; }
+  .batch-qr-grid { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 12mm; }
+  .printable-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid black; padding: 6mm; text-align: center; }
+  .qr-image { display: inline-block !important; width: 40mm !important; height: 40mm !important; }
 }
 
 /* Layout shared by the supplied admin screens. */
@@ -1263,3 +1242,7 @@ body { line-height: 1.45; }
   .modal-foot { padding: 0 24px 24px; }
 }
 @media (max-width: 400px) { .stat-grid { grid-template-columns: 1fr; } }
+
+.recipe-editor { border-top: 1px solid #e5e7eb; margin-top: 20px; padding-top: 16px; }
+.stock-scroll { max-height: 520px; overflow: auto; }
+.log-detail { white-space: normal; min-width: 240px; }

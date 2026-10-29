@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import RecipeEditor from "../components/admin/RecipeEditor";
 import PageHeader from "../components/ui/PageHeader";
 import Tabs from "../components/ui/Tabs";
 import DataTable, { type Column } from "../components/ui/DataTable";
@@ -6,6 +7,7 @@ import RowActions from "../components/ui/RowActions";
 import Modal from "../components/ui/Modal";
 import Toast, { type ToastMessage } from "../components/ui/Toast";
 import {
+  uploadFoodImage,
   getFoods,
   createFood,
   updateFood,
@@ -32,12 +34,7 @@ import {
   deleteComboItem,
   getIngredients,
 } from "../services/adminApi";
-import {
-  mockFoods,
-  mockCategories,
-  mockStations,
-  mockIngredients,
-} from "../data/mock";
+
 import { formatVND } from "../utils/format";
 import type {
   Food,
@@ -63,6 +60,8 @@ const TABS: TabItem[] = [
 ];
 
 export default function MenuPage() {
+  const [recipeFood, setRecipeFood] = useState<Food | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [tab, setTab] = useState("dishes");
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -158,13 +157,13 @@ export default function MenuPage() {
   const loadAll = async () => {
     try {
       const [f, c, s, og, opt, cb, ing] = await Promise.all([
-        getFoods().catch(() => mockFoods),
-        getCategories().catch(() => mockCategories),
-        getKitchenStations().catch(() => mockStations),
-        getOptionGroups().catch(() => []),
-        getOptions().catch(() => []),
-        getCombos().catch(() => []),
-        getIngredients().catch(() => mockIngredients),
+        getFoods().catch(error => { addToast("error", error.message); return []; }),
+        getCategories().catch(error => { addToast("error", error.message); return []; }),
+        getKitchenStations().catch(error => { addToast("error", error.message); return []; }),
+        getOptionGroups().catch(error => { addToast("error", error.message); return []; }),
+        getOptions().catch(error => { addToast("error", error.message); return []; }),
+        getCombos().catch(error => { addToast("error", error.message); return []; }),
+        getIngredients().catch(error => { addToast("error", error.message); return []; }),
       ]);
       setFoods(f);
       setCategories(c);
@@ -178,19 +177,14 @@ export default function MenuPage() {
       }));
       setComboCounts(Object.fromEntries(counts.filter(([, count]) => count !== undefined)) as Record<number, number>);
       setIngredients(ing);
-    } catch {
-      setFoods(mockFoods);
-      setCategories(mockCategories);
-      setStations(mockStations);
-      setIngredients(mockIngredients);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   useEffect(() => {
     let active = true;
-    Promise.all([getFoods().catch(() => mockFoods), getCategories().catch(() => mockCategories),
-      getKitchenStations().catch(() => mockStations), getOptionGroups().catch(() => []),
-      getOptions().catch(() => []), getCombos().catch(() => []), getIngredients().catch(() => mockIngredients)])
+    Promise.all([getFoods().catch(error => { addToast("error", error.message); return []; }), getCategories().catch(error => { addToast("error", error.message); return []; }),
+      getKitchenStations().catch(error => { addToast("error", error.message); return []; }), getOptionGroups().catch(error => { addToast("error", error.message); return []; }),
+      getOptions().catch(error => { addToast("error", error.message); return []; }), getCombos().catch(error => { addToast("error", error.message); return []; }), getIngredients().catch(error => { addToast("error", error.message); return []; })])
       .then(async ([foods, categories, stations, groups, options, combos, ingredients]) => {
         if (!active) return;
         setFoods(foods); setCategories(categories); setStations(stations); setOptionGroups(groups);
@@ -257,37 +251,12 @@ export default function MenuPage() {
         await updateFood(editingFood.id, foodForm);
         addToast("success", `Đã cập nhật món "${foodForm.name}"`);
       } else {
-        await createFood(foodForm);
+        const saved = await createFood(foodForm);
+        setEditingFood(saved);
         addToast("success", `Đã thêm món "${foodForm.name}" thành công`);
       }
-      setFoodModalOpen(false);
       loadAll();
-    } catch {
-      // Fallback local update
-      if (editingFood) {
-        setFoods((prev) =>
-          prev.map((x) =>
-            x.id === editingFood.id
-              ? {
-                  ...x,
-                  ...foodForm,
-                  category: categories.find((c) => c.id === foodForm.categoryId) || x.category,
-                }
-              : x
-          )
-        );
-        addToast("success", `Cập nhật món thành công (local)`);
-      } else {
-        const newF: Food = {
-          id: Date.now(),
-          ...foodForm,
-          category: categories.find((c) => c.id === foodForm.categoryId),
-        };
-        setFoods((prev) => [...prev, newF]);
-        addToast("success", `Thêm món mới thành công (local)`);
-      }
-      setFoodModalOpen(false);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteFood = async (food: Food) => {
@@ -296,10 +265,7 @@ export default function MenuPage() {
       await deleteFood(food.id);
       addToast("success", `Đã xóa món "${food.name}"`);
       loadAll();
-    } catch {
-      setFoods((prev) => prev.filter((x) => x.id !== food.id));
-      addToast("info", `Đã xóa món "${food.name}" (local)`);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   // Category Handlers
@@ -333,32 +299,7 @@ export default function MenuPage() {
       }
       setCategoryModalOpen(false);
       loadAll();
-    } catch {
-      if (editingCategory) {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === editingCategory.id
-              ? {
-                  ...c,
-                  name: categoryForm.name,
-                  kitchenStation: stations.find((s) => s.id === categoryForm.stationId),
-                }
-              : c
-          )
-        );
-      } else {
-        setCategories((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            name: categoryForm.name,
-            kitchenStation: stations.find((s) => s.id === categoryForm.stationId),
-          },
-        ]);
-      }
-      setCategoryModalOpen(false);
-      addToast("success", "Lưu danh mục thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteCategory = async (cat: Category) => {
@@ -367,10 +308,7 @@ export default function MenuPage() {
       await deleteCategory(cat.id);
       addToast("success", `Đã xóa danh mục "${cat.name}"`);
       loadAll();
-    } catch {
-      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
-      addToast("info", `Đã xóa danh mục "${cat.name}" (local)`);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   // Option Group Handlers
@@ -400,17 +338,7 @@ export default function MenuPage() {
       setGroupModalOpen(false);
       loadAll();
       addToast("success", "Lưu nhóm tùy chọn thành công");
-    } catch {
-      if (editingGroup) {
-        setOptionGroups((prev) =>
-          prev.map((g) => (g.id === editingGroup.id ? { ...g, ...groupForm } : g))
-        );
-      } else {
-        setOptionGroups((prev) => [...prev, { id: Date.now(), ...groupForm }]);
-      }
-      setGroupModalOpen(false);
-      addToast("success", "Lưu nhóm tùy chọn thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteGroup = async (g: OptionGroup) => {
@@ -418,9 +346,7 @@ export default function MenuPage() {
     try {
       await deleteOptionGroup(g.id);
       loadAll();
-    } catch {
-      setOptionGroups((prev) => prev.filter((x) => x.id !== g.id));
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   // Option Handlers
@@ -478,47 +404,7 @@ export default function MenuPage() {
       setOptionModalOpen(false);
       loadAll();
       addToast("success", "Lưu tùy chọn thành công");
-    } catch {
-      const targetFood = foods.find((f) => f.id === optionForm.foodId);
-      const targetGroup = optionGroups.find((g) => g.id === optionForm.groupId);
-      const targetIng = ingredients.find((i) => i.id === optionForm.ingredientId);
-      if (editingOption) {
-        setOptions((prev) =>
-          prev.map((o) =>
-            o.id === editingOption.id
-              ? {
-                  ...o,
-                  name: optionForm.name,
-                  food: targetFood,
-                  optionGroup: targetGroup,
-                  ingredient: targetIng,
-                  priceDelta: optionForm.priceDelta,
-                  scaleFactor: optionForm.scaleFactor,
-                  adjustAmount: optionForm.adjustAmount,
-                  adjustType: optionForm.adjustType,
-                }
-              : o
-          )
-        );
-      } else {
-        setOptions((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            name: optionForm.name,
-            food: targetFood,
-            optionGroup: targetGroup,
-            ingredient: targetIng,
-            priceDelta: optionForm.priceDelta,
-            scaleFactor: optionForm.scaleFactor,
-            adjustAmount: optionForm.adjustAmount,
-            adjustType: optionForm.adjustType,
-          },
-        ]);
-      }
-      setOptionModalOpen(false);
-      addToast("success", "Lưu tùy chọn thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteOption = async (opt: Option) => {
@@ -526,9 +412,7 @@ export default function MenuPage() {
     try {
       await deleteOption(opt.id);
       loadAll();
-    } catch {
-      setOptions((prev) => prev.filter((x) => x.id !== opt.id));
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   // Combo Handlers
@@ -562,17 +446,7 @@ export default function MenuPage() {
       setComboModalOpen(false);
       loadAll();
       addToast("success", "Lưu Combo thành công");
-    } catch {
-      if (editingCombo) {
-        setCombos((prev) =>
-          prev.map((c) => (c.id === editingCombo.id ? { ...c, ...comboForm } : c))
-        );
-      } else {
-        setCombos((prev) => [...prev, { id: Date.now(), ...comboForm }]);
-      }
-      setComboModalOpen(false);
-      addToast("success", "Lưu Combo thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteCombo = async (c: Combo) => {
@@ -580,9 +454,7 @@ export default function MenuPage() {
     try {
       await deleteCombo(c.id);
       loadAll();
-    } catch {
-      setCombos((prev) => prev.filter((x) => x.id !== c.id));
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   // Open Combo Items
@@ -594,13 +466,12 @@ export default function MenuPage() {
     try {
       const items = await getComboItems(c.id);
       setComboItems(items);
-    } catch {
-      setComboItems([]);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   const handleAddComboItem = async () => {
     if (!selectedComboForItems || newComboItemFoodId === 0) return;
+    if (!Number.isInteger(newComboItemQuantity) || newComboItemQuantity < 1) { addToast("error", "Số lượng phải là số nguyên dương"); return; }
     try {
       await addComboItem(selectedComboForItems.id, {
         foodId: newComboItemFoodId,
@@ -608,20 +479,9 @@ export default function MenuPage() {
       });
       const items = await getComboItems(selectedComboForItems.id);
       setComboItems(items);
+      loadAll();
       addToast("success", "Đã thêm món vào combo");
-    } catch {
-      const foodObj = foods.find((f) => f.id === newComboItemFoodId);
-      setComboItems((prev) => [
-        ...prev,
-        {
-          id: { comboId: selectedComboForItems.id, foodId: newComboItemFoodId },
-          combo: selectedComboForItems,
-          food: foodObj,
-          quantity: newComboItemQuantity,
-        },
-      ]);
-      addToast("info", "Đã thêm món vào combo (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteComboItem = async (foodId: number) => {
@@ -631,12 +491,7 @@ export default function MenuPage() {
       const items = await getComboItems(selectedComboForItems.id);
       setComboItems(items);
       addToast("success", "Đã xóa món khỏi combo");
-    } catch {
-      setComboItems((prev) =>
-        prev.filter((i) => i.food?.id !== foodId && i.id?.foodId !== foodId)
-      );
-      addToast("info", "Đã xóa món khỏi combo (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   // Table Columns Definitions
@@ -665,8 +520,8 @@ export default function MenuPage() {
   ];
   const comboColumns: Column<Combo>[] = [
     { key: "name", header: "Tên combo", className: "strong" },
-    { key: "discount", header: "Giảm giá", render: c => c.discountType === "PERCENT" ? `${c.discountValue}%` : formatVND(c.discountValue) },
-    { key: "count", header: "Số món", render: c => <button className="combo-count" onClick={() => handleOpenComboItems(c)} title="Xem và quản lý món trong combo">{comboCounts[c.id] ?? "—"}</button> },
+    { key: "discount", header: "Giá bán / Giảm giá", render: c => c.discountType === "PERCENT" ? `${c.discountValue}%` : formatVND(c.discountValue) },
+    { key: "count", header: "Số món", render: c => <button className="combo-count" onClick={() => handleOpenComboItems(c)} title="Xem và quản lý món trong combo">Quản lý món ({comboCounts[c.id] ?? "—"})</button> },
   ];
 
   return (
@@ -735,10 +590,12 @@ export default function MenuPage() {
             rows={filteredFoods}
             empty="Không tìm thấy món ăn phù hợp"
             actions={(f) => (
+              <>
+              <button className="link" onClick={() => setRecipeFood(f)}>Công thức</button>
               <RowActions
                 onEdit={() => handleOpenEditFood(f)}
                 onDelete={() => handleDeleteFood(f)}
-              />
+              /></>
             )}
           />
         </>
@@ -831,7 +688,7 @@ export default function MenuPage() {
             >
               Hủy
             </button>
-            <button type="button" className="btn-primary" onClick={handleSaveFood}>
+            <button type="button" className="btn-primary" disabled={uploading} onClick={handleSaveFood}>
               Lưu món
             </button>
           </>
@@ -862,8 +719,21 @@ export default function MenuPage() {
           <textarea id="food-description" className="field wide textarea" rows={3} placeholder="Mô tả ngắn về món" value={foodForm.description}
             onChange={e => setFoodForm({ ...foodForm, description: e.target.value })} /></div>
         <div className="form-group food-image-field"><label className="form-label" htmlFor="food-image">Ảnh món ăn</label>
-          <input id="food-image" type="url" className="field wide" placeholder="Dán đường dẫn ảnh PNG, JPG" value={foodForm.image}
-            onChange={e => setFoodForm({ ...foodForm, image: e.target.value })} /></div>
+          <input id="food-image" type="file" accept="image/png,image/jpeg" disabled={uploading} onChange={async e => {
+              const file = e.target.files?.[0]; if (!file) return;
+              setUploading(true);
+              try {
+                const image = await uploadFoodImage(file);
+                setFoodForm(current => ({...current, image}));
+                addToast("info", "Ảnh đã tải lên. Bấm Lưu món để gắn ảnh vào món.");
+              } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải được ảnh"); }
+              finally { setUploading(false); }
+            }} />
+            {uploading && <p role="status">Đang tải ảnh lên...</p>}
+            {foodForm.image && <img src={foodForm.image} alt="Ảnh món ăn đã chọn" style={{maxWidth:160,maxHeight:120,display:'block'}} />}
+          </div>
+          {editingFood ? <RecipeEditor key={editingFood.id} foodId={editingFood.id} /> : <p>Lưu món ăn trước để thêm công thức ngay tại đây.</p>}
+
       </Modal>
 
       {/* MODAL DANH MỤC */}
@@ -1191,7 +1061,7 @@ export default function MenuPage() {
               }
             >
               <option value="PERCENT">Giảm theo % (PERCENT)</option>
-              <option value="FIXED">Giảm số tiền cố định (FIXED VND)</option>
+              <option value="FIXED">Giá bán combo cố định (VNĐ)</option>
             </select>
           </div>
 
@@ -1213,6 +1083,9 @@ export default function MenuPage() {
         </div>
       </Modal>
 
+      <Modal isOpen={!!recipeFood} onClose={() => setRecipeFood(null)} title={`Công thức · ${recipeFood?.name || ''}`} maxWidth="760px">
+        {recipeFood && <RecipeEditor key={recipeFood.id} foodId={recipeFood.id} />}
+      </Modal>
       {/* MODAL MÓN TRONG COMBO */}
       <Modal
         isOpen={comboItemsModalOpen}

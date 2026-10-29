@@ -38,7 +38,7 @@ export async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const isLogin = path === "/admin/auth/login";
   const auth = isLogin ? null : getStoredAuth();
   const headers = new Headers(init?.headers);
-  headers.set("Content-Type", "application/json");
+  if (!(init?.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (auth?.token) headers.set("Authorization", `Bearer ${auth.token}`);
 
   let res: Response;

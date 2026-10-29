@@ -28,3 +28,6 @@ replay_pid*.log
 # Rebuild dependencies and frontend bundles on each machine.
 **/node_modules/
 **/dist/
+
+# Uploaded runtime images
+uploads/

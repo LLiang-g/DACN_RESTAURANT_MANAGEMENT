@@ -1,6 +1,6 @@
 # REST endpoint coverage
 
-76 distinct method + path mappings; 108 requests.
+78 distinct method + path mappings; 110 requests.
 
 | Method | Path | In collection |
 |---|---|---|
@@ -41,6 +41,7 @@
 | GET | `/api/admin/tables/{}` | Yes |
 | GET | `/api/customer/foods/{}` | Yes |
 | GET | `/api/customer/foods/{}/availability` | Yes |
+| GET | `/api/customer/media/{}` | Yes |
 | GET | `/api/customer/menu` | Yes |
 | GET | `/api/customer/tables/{}` | Yes |
 | GET | `/api/customer/tables/{}/invoice` | Yes |
@@ -50,6 +51,7 @@
 | POST | `/api/admin/categories` | Yes |
 | POST | `/api/admin/combos` | Yes |
 | POST | `/api/admin/combos/{}/items` | Yes |
+| POST | `/api/admin/food-images` | Yes |
 | POST | `/api/admin/foods` | Yes |
 | POST | `/api/admin/ingredients` | Yes |
 | POST | `/api/admin/kitchen-accounts` | Yes |

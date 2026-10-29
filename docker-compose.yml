@@ -25,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    volumes:
+      - admin_uploads:/app/uploads/admin
     container_name: restaurant_management_backend
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/${MYSQL_DATABASE:-smart_pos_kds}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
@@ -62,3 +64,4 @@ networks:
 
 volumes:
   mysql_data:
+  admin_uploads:

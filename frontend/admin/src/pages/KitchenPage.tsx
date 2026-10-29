@@ -16,7 +16,7 @@ import {
   updateKitchenAccount,
   deleteKitchenAccount,
 } from "../services/adminApi";
-import { mockStations, mockKitchenAccounts } from "../data/mock";
+
 import type { KitchenStation, KitchenAccount, Category, TabItem } from "../types";
 
 const TABS: TabItem[] = [
@@ -53,22 +53,19 @@ export default function KitchenPage() {
   const loadData = async () => {
     try {
       const [s, a, c] = await Promise.all([
-        getKitchenStations().catch(() => mockStations),
-        getKitchenAccounts().catch(() => mockKitchenAccounts),
-        getCategories().catch(() => []),
+        getKitchenStations().catch(error => { addToast("error", error.message); return []; }),
+        getKitchenAccounts().catch(error => { addToast("error", error.message); return []; }),
+        getCategories().catch(error => { addToast("error", error.message); return []; }),
       ]);
       setStations(s);
       setCategories(c);
       setAccounts(a);
-    } catch {
-      setStations(mockStations);
-      setAccounts(mockKitchenAccounts);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
   useEffect(() => {
     let active = true;
-    Promise.all([getKitchenStations().catch(() => mockStations), getKitchenAccounts().catch(() => mockKitchenAccounts), getCategories().catch(() => [])])
+    Promise.all([getKitchenStations().catch(error => { addToast("error", error.message); return []; }), getKitchenAccounts().catch(error => { addToast("error", error.message); return []; }), getCategories().catch(error => { addToast("error", error.message); return []; })])
       .then(([stations, accounts, categories]) => { if (active) { setStations(stations); setAccounts(accounts); setCategories(categories); } });
     return () => { active = false; };
   }, []);
@@ -101,17 +98,7 @@ export default function KitchenPage() {
       }
       setStationModalOpen(false);
       loadData();
-    } catch {
-      if (editingStation) {
-        setStations((prev) =>
-          prev.map((s) => (s.id === editingStation.id ? { ...s, name: stationName } : s))
-        );
-      } else {
-        setStations((prev) => [...prev, { id: Date.now(), name: stationName }]);
-      }
-      setStationModalOpen(false);
-      addToast("success", "Lưu khu bếp thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteStation = async (st: KitchenStation) => {
@@ -120,10 +107,7 @@ export default function KitchenPage() {
       await deleteKitchenStation(st.id);
       addToast("success", `Đã xóa khu bếp "${st.name}"`);
       loadData();
-    } catch {
-      setStations((prev) => prev.filter((s) => s.id !== st.id));
-      addToast("info", `Đã xóa khu bếp "${st.name}" (local)`);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   // Kitchen Account Handlers
@@ -179,35 +163,7 @@ export default function KitchenPage() {
       }
       setAccountModalOpen(false);
       loadData();
-    } catch {
-      const stationObj = stations.find((s) => s.id === accountForm.stationId);
-      if (editingAccount) {
-        setAccounts((prev) =>
-          prev.map((a) =>
-            a.id === editingAccount.id
-              ? {
-                  ...a,
-                  username: accountForm.username,
-                  stationId: accountForm.stationId,
-                  kitchenStation: stationObj,
-                }
-              : a
-          )
-        );
-      } else {
-        setAccounts((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            username: accountForm.username,
-            stationId: accountForm.stationId,
-            kitchenStation: stationObj,
-          },
-        ]);
-      }
-      setAccountModalOpen(false);
-      addToast("success", "Lưu tài khoản thành công (local)");
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const handleDeleteAccount = async (acc: KitchenAccount) => {
@@ -216,10 +172,7 @@ export default function KitchenPage() {
       await deleteKitchenAccount(acc.id);
       addToast("success", `Đã xóa tài khoản "${acc.username}"`);
       loadData();
-    } catch {
-      setAccounts((prev) => prev.filter((a) => a.id !== acc.id));
-      addToast("info", `Đã xóa tài khoản "${acc.username}" (local)`);
-    }
+    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
 
   const stationColumns: Column<KitchenStation>[] = [

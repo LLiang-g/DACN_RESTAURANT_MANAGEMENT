@@ -224,6 +224,72 @@
             }
           ],
           "description": "/api/admin/foods"
+        },
+        {
+          "name": "Upload food image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/food-images",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/food.png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const result = pm.response.json();",
+                  "pm.test(\"Save uploadedImage\", () => { pm.expect(result.url).to.exist; pm.collectionVariables.set(\"uploadedImage\", result.url); });"
+                ]
+              }
+            }
+          ],
+          "description": "/api/admin/food-images"
+        },
+        {
+          "name": "Read uploaded menu image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{uploadedImage}}",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Image is PNG\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"image/png\"));"
+                ]
+              }
+            }
+          ],
+          "description": "/api/customer/media/{filename}"
         }
       ]
     },
@@ -849,7 +915,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\"name\": \"API {{runId}} food\", \"categoryId\": \"{{categoryId}}\", \"price\": 10000, \"estimatedCookingTime\": 5}",
+              "raw": "{\"name\": \"API {{runId}} food\", \"categoryId\": \"{{categoryId}}\", \"price\": 10000, \"estimatedCookingTime\": 5, \"image\": \"{{uploadedImage}}\"}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -927,7 +993,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\"name\": \"API {{runId}} food updated\", \"categoryId\": \"{{categoryId}}\", \"price\": 12000, \"estimatedCookingTime\": 6}",
+              "raw": "{\"name\": \"API {{runId}} food updated\", \"categoryId\": \"{{categoryId}}\", \"price\": 12000, \"estimatedCookingTime\": 6, \"image\": \"{{uploadedImage}}\"}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1601,7 +1667,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\"floor\": \"API {{runId}}\", \"tableNumber\": \"CRUD\", \"status\": \"AVAILABLE\"}",
+              "raw": "{\"floor\": \"API {{runId}}\", \"tableNumber\": \"CRUD\", \"status\": \"SERVING\"}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1617,7 +1683,8 @@
                 "exec": [
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
                   "const result = pm.response.json();",
-                  "pm.test(\"Save tableId\", () => { pm.expect(result.id).to.exist; pm.collectionVariables.set(\"tableId\", result.id); });"
+                  "pm.test(\"Save tableId\", () => { pm.expect(result.id).to.exist; pm.collectionVariables.set(\"tableId\", result.id); });",
+                  "pm.test(\"Response contract / business state\", () => { pm.expect(result.status).to.eql(\"AVAILABLE\"); });"
                 ]
               }
             }
@@ -3807,7 +3874,7 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const result = pm.response.json();",
-                  "pm.test(\"Response contract / business state\", () => { pm.expect(result.some(x => String(x.targetId) === String(pm.collectionVariables.get(\"foodId\")))).to.eql(true); });"
+                  "pm.test(\"Response contract / business state\", () => { pm.expect(result.some(x => String(x.targetId) === String(pm.collectionVariables.get(\"foodId\")))).to.eql(true); pm.expect(result.every(x => x.detail && x.actorName && x.targetName)).to.eql(true); const deleted = result.find(x => x.action === \"delete\" && x.targetType === \"food\" && String(x.targetId) === String(pm.collectionVariables.get(\"foodId\"))); pm.expect(deleted.targetName).to.include(\"API\"); });"
                 ]
               }
             }

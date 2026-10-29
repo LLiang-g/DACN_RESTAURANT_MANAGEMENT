@@ -338,7 +338,7 @@ public class AdminDataController {
     }
 
     @GetMapping("/activity-logs")
-    public List<ActivityLog> activityLogs() {
+    public List<com.sccgroup.restaurant_management.admin.service.AdminLogService.LogView> activityLogs() {
         return service.activityLogs();
     }
 

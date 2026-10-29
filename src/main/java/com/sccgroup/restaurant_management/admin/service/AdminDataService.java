@@ -40,6 +40,7 @@ public class AdminDataService {
     private final KitchenAccountRepository kitchenAccounts;
     private final ActivityLogRepository activityLogs;
     private final PasswordEncoder passwordEncoder;
+    private final AdminLogService logService;
 
     public AdminDataService(KitchenStationRepository stations, CategoryRepository categories, FoodRepository foods,
                             IngredientRepository ingredients, RecipeRepository recipes,
@@ -47,7 +48,7 @@ public class AdminDataService {
                             OptionRepository options, ComboRepository combos, ComboItemRepository comboItems,
                             RestaurantTableRepository tables, AdminStaffAccountRepository staffAccounts,
                             KitchenAccountRepository kitchenAccounts, ActivityLogRepository activityLogs,
-                            PasswordEncoder passwordEncoder) {
+                            PasswordEncoder passwordEncoder, AdminLogService logService) {
         this.stations = stations;
         this.categories = categories;
         this.foods = foods;
@@ -63,6 +64,7 @@ public class AdminDataService {
         this.kitchenAccounts = kitchenAccounts;
         this.activityLogs = activityLogs;
         this.passwordEncoder = passwordEncoder;
+        this.logService = logService;
     }
 
     public List<KitchenStation> stations() {
@@ -92,8 +94,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteStation(Long id, Actor actor) {
-        stations.delete(station(id));
         log(actor, "delete", "kitchen_station", id, null);
+        stations.delete(station(id));
     }
 
     public List<AdminDtos.CategoryResponse> categories() {
@@ -128,8 +130,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteCategory(Long id, Actor actor) {
-        categories.delete(category(id));
         log(actor, "delete", "category", id, null);
+        categories.delete(category(id));
     }
 
     public List<AdminDtos.FoodResponse> foods() {
@@ -171,8 +173,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteFood(Long id, Actor actor) {
-        foods.delete(food(id));
         log(actor, "delete", "food", id, null);
+        foods.delete(food(id));
     }
 
     public List<Ingredient> ingredients() {
@@ -205,8 +207,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteIngredient(Long id, Actor actor) {
-        ingredients.delete(ingredient(id));
         log(actor, "delete", "ingredient", id, null);
+        ingredients.delete(ingredient(id));
     }
 
     public List<AdminDtos.RecipeResponse> recipes(Long foodId) {
@@ -236,8 +238,8 @@ public class AdminDataService {
     @Transactional
     public void deleteRecipe(Long id, Actor actor) {
         if (!recipes.existsById(id)) throw missing("Recipe", id);
-        recipes.deleteById(id);
         log(actor, "delete", "recipe", id, null);
+        recipes.deleteById(id);
     }
 
     public List<AdminDtos.StockTransactionResponse> stockTransactions() {
@@ -257,8 +259,9 @@ public class AdminDataService {
         if (next.signum() < 0) throw new BusinessException("Insufficient stock");
         ingredient.setStockQuantity(next);
         ingredients.save(ingredient);
-        StockTransaction saved = stockTransactions.save(new StockTransaction(ingredient, request.type(), request.quantity(), request.note(), LocalDateTime.now()));
-        log(actor, request.type().name().toLowerCase(), "ingredient", ingredient.getId(), request.note());
+        String note = AdminLogService.actionName(request.type().name()) + " " + ingredient.getName() + ": " + request.quantity() + " " + ingredient.getUnit() + (request.note() == null || request.note().isBlank() ? "" : ". " + request.note());
+        StockTransaction saved = stockTransactions.save(new StockTransaction(ingredient, request.type(), request.quantity(), note, LocalDateTime.now()));
+        log(actor, request.type().name().toLowerCase(), "ingredient", ingredient.getId(), note);
         return AdminDtos.toStockTransaction(saved);
     }
 
@@ -290,8 +293,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteOptionGroup(Long id, Actor actor) {
-        optionGroups.delete(optionGroup(id));
         log(actor, "delete", "option_group", id, null);
+        optionGroups.delete(optionGroup(id));
     }
 
     public List<AdminDtos.OptionResponse> options() {
@@ -343,8 +346,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteOption(Long id, Actor actor) {
-        options.delete(option(id));
         log(actor, "delete", "option", id, null);
+        options.delete(option(id));
     }
 
     public List<Combo> combos() {
@@ -376,8 +379,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteCombo(Long id, Actor actor) {
-        combos.delete(combo(id));
         log(actor, "delete", "combo", id, null);
+        combos.delete(combo(id));
     }
 
     public List<AdminDtos.ComboItemResponse> comboItems(Long comboId) {
@@ -390,14 +393,14 @@ public class AdminDataService {
         if (request.quantity() == null || request.quantity() < 1)
             throw new BusinessException("Quantity must be positive");
         ComboItem item = comboItems.save(new ComboItem(combo(comboId), food(request.foodId()), request.quantity()));
-        log(actor, "create", "combo_item", null, null);
+        log(actor, "create", "combo", comboId, "Thêm món " + item.getFood().getName() + " × " + request.quantity());
         return AdminDtos.toComboItem(item);
     }
 
     @Transactional
     public void deleteComboItem(Long comboId, Long foodId, Actor actor) {
+        log(actor, "update", "combo", comboId, "Xóa món " + food(foodId).getName() + " khỏi combo");
         comboItems.deleteById(new ComboItemId(comboId, foodId));
-        log(actor, "delete", "combo_item", null, null);
     }
 
     public List<RestaurantTable> restaurantTables() {
@@ -412,7 +415,7 @@ public class AdminDataService {
     public RestaurantTable createTable(AdminDtos.TableRequest request, Actor actor) {
         requireText(request.floor(), "Floor");
         requireText(request.tableNumber(), "Table number");
-        RestaurantTable saved = tables.save(new RestaurantTable(request.floor().trim(), request.tableNumber().trim(), request.status()));
+        RestaurantTable saved = tables.save(new RestaurantTable(request.floor().trim(), request.tableNumber().trim(), com.sccgroup.restaurant_management.domain.entity.floor.TableStatus.AVAILABLE));
         log(actor, "create", "table", saved.getId(), saved.getTableNumber());
         return saved;
     }
@@ -431,8 +434,8 @@ public class AdminDataService {
 
     @Transactional
     public void deleteTable(Long id, Actor actor) {
-        tables.delete(restaurantTable(id));
         log(actor, "delete", "table", id, null);
+        tables.delete(restaurantTable(id));
     }
 
     public List<StaffAccount> staffAccounts() {
@@ -464,8 +467,8 @@ public class AdminDataService {
     @Transactional
     public void deleteStaffAccount(Long id, Actor actor) {
         if (!staffAccounts.existsById(id)) throw missing("Staff account", id);
-        staffAccounts.deleteById(id);
         log(actor, "delete", "staff_account", id, null);
+        staffAccounts.deleteById(id);
     }
 
     public List<KitchenAccount> kitchenAccounts() {
@@ -496,12 +499,12 @@ public class AdminDataService {
     @Transactional
     public void deleteKitchenAccount(Long id, Actor actor) {
         if (!kitchenAccounts.existsById(id)) throw missing("Kitchen account", id);
-        kitchenAccounts.deleteById(id);
         log(actor, "delete", "kitchen_account", id, null);
+        kitchenAccounts.deleteById(id);
     }
 
-    public List<ActivityLog> activityLogs() {
-        return activityLogs.findAll();
+    public List<AdminLogService.LogView> activityLogs() {
+        return activityLogs.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt", "id")).stream().map(logService::view).toList();
     }
 
     private void validateFood(AdminDtos.FoodRequest r) {
@@ -550,8 +553,15 @@ public class AdminDataService {
     }
 
     private void log(Actor actor, String action, String targetType, Long targetId, String detail) {
-        if (actor != null)
-            activityLogs.save(new ActivityLog(actor.accountId(), actor.accountType(), action, targetType, targetId, detail, LocalDateTime.now()));
+        if (actor != null) {
+            // Flush pending JPA changes before JDBC captures the current display name.
+            foods.flush();
+            String target = logService.targetName(targetType, targetId);
+            String generated = AdminLogService.actionName(action) + " " + target + (detail == null || detail.isBlank() ? "." : ": " + detail);
+            ActivityLog entry = new ActivityLog(actor.accountId(), actor.accountType(), action, targetType, targetId, generated.substring(0, Math.min(500, generated.length())), LocalDateTime.now());
+            entry.setNames(logService.actorName(actor.accountId(), actor.accountType().name()), target);
+            activityLogs.save(entry);
+        }
     }
 
     public record Actor(Long accountId, AccountType accountType) {
