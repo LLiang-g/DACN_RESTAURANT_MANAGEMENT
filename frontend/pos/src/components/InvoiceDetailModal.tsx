@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { InvoiceDetail, PaymentMethod } from '../types/pos';
 import { posApi } from '../api/posApi';
 import InvoiceReceipt from './InvoiceReceipt';
+
 interface Props {
   invoiceId: number;
   onClose: () => void;
@@ -17,6 +18,10 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [processingItemId, setProcessingItemId] = useState<number | null>(null);
+
+  // State cho popup nhập lý do trả món ở giữa màn hình
+  const [returningItemId, setReturningItemId] = useState<number | null>(null);
+  const [returnReason, setReturnReason] = useState('');
 
   const loadInvoice = () => {
     setLoading(true);
@@ -46,34 +51,50 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
       setSubmitting(false);
     }
   };
-  const handleMarkServed = async (orderItemId: number) => {
-  setError(null);
-  setProcessingItemId(orderItemId);
-  try {
-    await posApi.markServed(orderItemId);
-    await loadInvoice();
-    onChanged();
-  } catch (err: any) {
-    setError(err?.response?.data?.message ?? 'Không đánh dấu phục vụ được.');
-  } finally {
-    setProcessingItemId(null);
-  }
-};
 
-const handleMarkReturned = async (orderItemId: number) => {
-  if (!confirm('Xác nhận trả món này (khách không dùng nữa)?')) return;
-  setError(null);
-  setProcessingItemId(orderItemId);
-  try {
-    await posApi.markReturned(orderItemId);
-    await loadInvoice();
-    onChanged();
-  } catch (err: any) {
-    setError(err?.response?.data?.message ?? 'Không trả món được.');
-  } finally {
-    setProcessingItemId(null);
-  }
-};
+  const handleMarkServed = async (orderItemId: number) => {
+    setError(null);
+    setProcessingItemId(orderItemId);
+    try {
+      await posApi.markServed(orderItemId);
+      await loadInvoice();
+      onChanged();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Không đánh dấu phục vụ được.');
+    } finally {
+      setProcessingItemId(null);
+    }
+  };
+
+  // Mở popup nhập lý do trả món
+  const openReturnModal = (orderItemId: number) => {
+    setError(null);
+    setReturningItemId(orderItemId);
+    setReturnReason('');
+  };
+
+  // Xác nhận trả món kèm lý do
+  const handleConfirmReturn = async () => {
+    if (returningItemId === null) return;
+    if (!returnReason.trim()) {
+      setError('Vui lòng nhập lý do trả món.');
+      return;
+    }
+
+    setError(null);
+    setProcessingItemId(returningItemId);
+    try {
+      await posApi.markReturned(returningItemId, returnReason.trim());
+      setReturningItemId(null);
+      setReturnReason('');
+      await loadInvoice();
+      onChanged();
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Không trả món được.');
+    } finally {
+      setProcessingItemId(null);
+    }
+  };
 
   const handleCancelInvoice = async () => {
     if (!confirm('Xác nhận hủy hóa đơn này?')) return;
@@ -110,8 +131,8 @@ const handleMarkReturned = async (orderItemId: number) => {
     setProcessingItemId(orderItemId);
     try {
       await posApi.undoReturnItem(orderItemId);
-      await loadInvoice(); // tải lại để thấy trạng thái/tổng tiền mới, KHÔNG đóng modal
-      onChanged(); // đồng thời báo PosDashboard refresh danh sách bàn/đơn
+      await loadInvoice();
+      onChanged();
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Không hoàn tác được.');
     } finally {
@@ -134,7 +155,7 @@ const handleMarkReturned = async (orderItemId: number) => {
         
         {invoice && (
           <>
-            <h4>Hóa đơn — Bàn {invoice.tableNumber} (Tầng {invoice.floor})</h4>
+            <h4>Hóa đơn — Bàn {invoice.tableNumber} ( {invoice.floor})</h4>
 
             <ul className="invoice-items">
               {invoice.items.map((item) => (
@@ -157,7 +178,7 @@ const handleMarkReturned = async (orderItemId: number) => {
                     <button
                       className="return-btn"
                       disabled={processingItemId === item.orderItemId}
-                      onClick={() => handleMarkReturned(item.orderItemId)}
+                      onClick={() => openReturnModal(item.orderItemId)}
                     >
                       Trả món
                     </button>
@@ -200,7 +221,7 @@ const handleMarkReturned = async (orderItemId: number) => {
                           <button
                             className="return-btn"
                             disabled={processingItemId === ci.orderItemId}
-                            onClick={() => handleMarkReturned(ci.orderItemId)}
+                            onClick={() => openReturnModal(ci.orderItemId)}
                           >
                             Trả món
                           </button>
@@ -273,13 +294,10 @@ const handleMarkReturned = async (orderItemId: number) => {
                 Đưa bàn về Trống
               </button>
               <button onClick={onClose} disabled={submitting}>Đóng</button>
-              <button className="free-table-btn" onClick={handleFreeTable} disabled={submitting}>
-                Đưa bàn về Trống
-              </button>
+              
               <button className="print-btn" onClick={() => window.print()} disabled={submitting}>
                 In hóa đơn
               </button>
-              <button onClick={onClose} disabled={submitting}>Đóng</button>
 
               {invoice.status === 'OPEN' && (
                 <>
@@ -294,6 +312,49 @@ const handleMarkReturned = async (orderItemId: number) => {
             </div>
             <InvoiceReceipt invoice={invoice} />
           </>
+        )}
+
+        {/* Modal con hiển thị ô input nhập lý do trả món ngay giữa màn hình */}
+        {returningItemId !== null && (
+          <div
+            className="modal-backdrop"
+            style={{ zIndex: 1100 }}
+            onClick={() => setReturningItemId(null)}
+          >
+            <div
+              className="modal return-reason-modal"
+              style={{ maxWidth: '400px', width: '90%', padding: '20px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4>Nhập lý do trả món</h4>
+              <input
+                type="text"
+                placeholder="VD: Khách đổi ý, món làm nguội..."
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                autoFocus
+                style={{ width: '100%', padding: '8px', marginTop: '10px', marginBottom: '16px', boxSizing: 'border-box' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmReturn();
+                }}
+              />
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  onClick={() => setReturningItemId(null)}
+                  disabled={processingItemId === returningItemId}
+                >
+                  Hủy
+                </button>
+                <button
+                  className="return-btn"
+                  onClick={handleConfirmReturn}
+                  disabled={!returnReason.trim() || processingItemId === returningItemId}
+                >
+                  Xác nhận trả món
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

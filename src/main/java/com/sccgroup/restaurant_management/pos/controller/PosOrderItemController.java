@@ -1,6 +1,7 @@
 package com.sccgroup.restaurant_management.pos.controller;
 
 import com.sccgroup.restaurant_management.pos.dto.RejectRequest;
+import com.sccgroup.restaurant_management.pos.dto.ReturnRequest;
 import com.sccgroup.restaurant_management.pos.service.PosOrderActionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -35,8 +36,8 @@ public class PosOrderItemController {
     }
 
     @PatchMapping("/{id}/return")
-    public ResponseEntity<Void> returnItem(@PathVariable Long id) {
-        posOrderActionService.markReturned(id);
+    public ResponseEntity<Void> returnItem(@PathVariable Long id, @RequestBody ReturnRequest request) {
+        posOrderActionService.markReturned(id, request.reason());
         return ResponseEntity.noContent().build();
     }
 

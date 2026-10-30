@@ -17,8 +17,8 @@ export const posApi = {
   markServed: (orderItemId: number) =>
     apiClient.patch(`/api/pos/order-items/${orderItemId}/served`),
 
-  markReturned: (orderItemId: number) =>
-    apiClient.patch(`/api/pos/order-items/${orderItemId}/return`),
+  markReturned: (orderItemId: number, reason: string) =>
+    apiClient.patch(`/api/pos/order-items/${orderItemId}/return`, { reason }),
   
   getInvoiceDetail: (invoiceId: number) =>
   apiClient.get<InvoiceDetail>(`/api/pos/invoices/${invoiceId}`).then((r) => r.data),

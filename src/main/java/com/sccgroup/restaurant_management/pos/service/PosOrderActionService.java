@@ -70,24 +70,7 @@ public class PosOrderActionService {
 
     }
 
-    @Transactional
-    public void undoReturn(Long orderItemId) {
-        OrderItem item = orderItemRepository.findById(orderItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
 
-        if (item.getStatus() != OrderItemStatus.RETURNED) {
-            throw new BusinessException("ORDER_ITEM_NOT_UNDOABLE",
-                    "Chỉ có thể hoàn tác món đang ở trạng thái RETURNED");
-        }
-
-        item.setStatus(OrderItemStatus.SERVED);
-        item.setReturnedAt(null);
-        orderItemRepository.save(item);
-
-        Long tableId = item.getOrder().getInvoice().getTable().getId();
-        realtimeEventPublisher.publishAfterCommit("/topic/table/" + tableId,
-                new OrderItemStatusEvent(item.getId(), tableId, "SERVED", null));
-    }
 
     private OrderItem getPendingItemOrThrow(Long orderItemId) {
         OrderItem item = orderItemRepository.findById(orderItemId)
@@ -123,7 +106,31 @@ public class PosOrderActionService {
     }
 
     @Transactional
-    public void markReturned(Long orderItemId) {
+    public void undoReturn(Long orderItemId) {
+        OrderItem item = orderItemRepository.findById(orderItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
+
+        if (item.getStatus() != OrderItemStatus.RETURNED) {
+            throw new BusinessException("ORDER_ITEM_NOT_UNDOABLE",
+                    "Chỉ có thể hoàn tác món đang ở trạng thái RETURNED");
+        }
+
+        item.setStatus(OrderItemStatus.SERVED);
+        item.setReturnedAt(null);
+        item.setNote(null); // Xóa lý do trả món khi hoàn tác
+        orderItemRepository.save(item);
+
+        Long tableId = item.getOrder().getInvoice().getTable().getId();
+        realtimeEventPublisher.publishAfterCommit("/topic/table/" + tableId,
+                new OrderItemStatusEvent(item.getId(), tableId, "SERVED", null));
+    }
+
+    @Transactional
+    public void markReturned(Long orderItemId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("RETURN_REASON_REQUIRED", "Phải nhập lý do khi trả món");
+        }
+
         OrderItem item = orderItemRepository.findById(orderItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
 
@@ -134,14 +141,14 @@ public class PosOrderActionService {
 
         item.setStatus(OrderItemStatus.RETURNED);
         item.setReturnedAt(LocalDateTime.now());
+        item.setNote(reason.trim()); // Lưu lý do trả món vào note
         orderItemRepository.save(item);
 
         Long tableId = item.getOrder().getInvoice().getTable().getId();
         realtimeEventPublisher.publishAfterCommit(
                 "/topic/table/" + tableId,
-                new OrderItemStatusEvent(item.getId(), tableId, "RETURNED", null)
+                new OrderItemStatusEvent(item.getId(), tableId, "RETURNED", reason.trim())
         );
-
     }
 
 }
