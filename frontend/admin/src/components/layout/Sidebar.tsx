@@ -21,7 +21,7 @@ export default function Sidebar({ onLogout }: SidebarProps) {
       <div className="brand">
         <span className="brand-logo" />
         <div>
-          <div className="brand-title">Smart POS</div>
+          <div className="brand-title">Smart POS & KDS</div>
           <div className="brand-role">Quản lý nhà hàng</div>
         </div>
       </div>

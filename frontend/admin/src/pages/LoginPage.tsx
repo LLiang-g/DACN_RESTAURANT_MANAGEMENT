@@ -35,7 +35,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-header">
-          <div className="login-brand"><span className="brand-logo" aria-hidden="true" />Smart POS</div>
+          <div className="login-brand"><span className="brand-logo" aria-hidden="true" />Smart POS & KDS</div>
           <h1 className="login-title">Đăng nhập</h1>
           <p className="login-subtitle">Đăng nhập để quản lý nhà hàng</p>
         </div>
