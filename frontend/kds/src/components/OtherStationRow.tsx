@@ -5,6 +5,7 @@ const STATUS_TEXT: Record<string, string> = {
   CONFIRMED: 'Chờ nấu',
   COOKING: 'Đang nấu',
   DONE: 'Đã xong',
+  SERVED: 'Đã phục vụ',
 };
 
 export default function OtherStationRow({ item, now }: { item: KdsOrderItem; now: number }) {

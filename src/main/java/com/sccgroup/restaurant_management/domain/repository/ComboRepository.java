@@ -1,8 +1,0 @@
-package com.sccgroup.restaurant_management.domain.repository;
-
-import com.sccgroup.restaurant_management.domain.entity.menu.Combo;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-@org.springframework.stereotype.Repository("adminComboRepository")
-public interface ComboRepository extends JpaRepository<Combo, Long> {
-}

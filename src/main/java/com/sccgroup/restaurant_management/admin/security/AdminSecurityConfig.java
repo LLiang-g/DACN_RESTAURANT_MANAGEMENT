@@ -3,7 +3,7 @@ package com.sccgroup.restaurant_management.admin.security;
 import com.sccgroup.restaurant_management.common.security.AppUserPrincipal;
 import com.sccgroup.restaurant_management.common.security.JwtUtil;
 import com.sccgroup.restaurant_management.domain.entity.account.StaffRole;
-import com.sccgroup.restaurant_management.domain.repository.AdminStaffAccountRepository;
+import com.sccgroup.restaurant_management.domain.repository.account.StaffAccountRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,7 +26,7 @@ public class AdminSecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain adminSecurityFilterChain(HttpSecurity http, JwtUtil jwt,
-                                                AdminStaffAccountRepository accounts) throws Exception {
+                                                StaffAccountRepository accounts) throws Exception {
         return http.securityMatcher("/api/admin/**")
                 .cors(org.springframework.security.config.Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())

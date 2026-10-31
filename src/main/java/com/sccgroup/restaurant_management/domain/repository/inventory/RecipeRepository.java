@@ -15,4 +15,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
 
     @Query("select r from Recipe r join fetch r.ingredient join fetch r.food")
     List<Recipe> findAllWithIngredient();
+
+    List<Recipe> findByFoodId(Long foodId);
+
+    boolean existsByFoodIdAndIngredientId(Long foodId, Long ingredientId);
 }

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -47,14 +48,17 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     /**
      * Các món hiện lên màn hình bếp, kèm mọi thứ cần hiển thị (món -> danh mục -> khu bếp,
      * order -> hóa đơn -> bàn, combo) trong MỘT câu truy vấn để tránh N+1.
-     * Sắp theo thời điểm gửi đơn cũ nhất trước.
+     * Chỉ lấy order tạo trong khoảng [from, to) (một ngày); sắp theo thời điểm gửi đơn cũ nhất trước.
      */
     @Query("select oi from OrderItem oi " +
            "join fetch oi.food f join fetch f.category c join fetch c.kitchenStation " +
            "join fetch oi.order o join fetch o.invoice i join fetch i.table " +
            "left join fetch oi.orderCombo oc left join fetch oc.combo " +
-           "where oi.status in :statuses order by o.createdAt, oi.id")
-    List<OrderItem> findForKds(@Param("statuses") Collection<OrderItemStatus> statuses);
+           "where oi.status in :statuses and o.createdAt >= :from and o.createdAt < :to " +
+           "order by o.createdAt, oi.id")
+    List<OrderItem> findForKds(@Param("statuses") Collection<OrderItemStatus> statuses,
+                               @Param("from") LocalDateTime from,
+                               @Param("to") LocalDateTime to);
 
     /** Tên các option khách đã chọn cho nhiều món một lượt: mỗi dòng là [orderItemId, tên option]. */
     @Query("select oio.orderItem.id, oio.option.name from OrderItemOption oio " +
@@ -83,10 +87,16 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     /**
      * Id các order còn món ở trạng thái đã cho thuộc khu bếp, order cũ nhất trước.
      * Truyền PageRequest.of(0, 1) để chỉ lấy order cũ nhất. Order không có món nào của khu bếp thì không xuất hiện ở đây.
+     * Chỉ xét order tạo từ thời điểm {@code from} (đầu ngày hôm nay) để không tự nấu nhầm đơn cũ không còn hiện trên màn hình.
      */
     @Query("select o.id from OrderItem oi join oi.order o join oi.food f join f.category c " +
-           "where oi.status = :status and c.kitchenStation.id = :stationId order by o.createdAt, o.id")
+           "where oi.status = :status and c.kitchenStation.id = :stationId and o.createdAt >= :from " +
+           "order by o.createdAt, o.id")
     List<Long> findOrderIdsWithStatusForStation(@Param("status") OrderItemStatus status,
                                                 @Param("stationId") Long stationId,
+                                                @Param("from") LocalDateTime from,
                                                 Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<OrderItem> findLockedById(Long id);
 }

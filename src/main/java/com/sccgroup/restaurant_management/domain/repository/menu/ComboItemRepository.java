@@ -16,4 +16,6 @@ public interface ComboItemRepository extends JpaRepository<ComboItem, ComboItemI
 
     @Query("select ci from ComboItem ci join fetch ci.food join fetch ci.combo")
     List<ComboItem> findAllWithFood();
+
+    List<ComboItem> findByComboId(Long comboId);
 }

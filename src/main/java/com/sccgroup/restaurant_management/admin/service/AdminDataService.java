@@ -3,18 +3,21 @@ package com.sccgroup.restaurant_management.admin.service;
 import com.sccgroup.restaurant_management.admin.dto.AdminDtos;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
-import com.sccgroup.restaurant_management.common.security.AppUserPrincipal;
 import com.sccgroup.restaurant_management.domain.entity.account.*;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
 import com.sccgroup.restaurant_management.domain.entity.inventory.Ingredient;
 import com.sccgroup.restaurant_management.domain.entity.inventory.Recipe;
 import com.sccgroup.restaurant_management.domain.entity.menu.*;
-import com.sccgroup.restaurant_management.domain.repository.*;
+import com.sccgroup.restaurant_management.domain.repository.account.ActivityLogRepository;
 import com.sccgroup.restaurant_management.domain.repository.account.KitchenAccountRepository;
+import com.sccgroup.restaurant_management.domain.repository.account.StaffAccountRepository;
+import com.sccgroup.restaurant_management.domain.repository.inventory.IngredientRepository;
+import com.sccgroup.restaurant_management.domain.repository.inventory.RecipeRepository;
+import com.sccgroup.restaurant_management.domain.repository.inventory.StockTransactionRepository;
+import com.sccgroup.restaurant_management.domain.repository.menu.*;
 import com.sccgroup.restaurant_management.kds.repository.KitchenStationRepository;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +39,7 @@ public class AdminDataService {
     private final ComboRepository combos;
     private final ComboItemRepository comboItems;
     private final RestaurantTableRepository tables;
-    private final AdminStaffAccountRepository staffAccounts;
+    private final StaffAccountRepository staffAccounts;
     private final KitchenAccountRepository kitchenAccounts;
     private final ActivityLogRepository activityLogs;
     private final PasswordEncoder passwordEncoder;
@@ -46,7 +49,7 @@ public class AdminDataService {
                             IngredientRepository ingredients, RecipeRepository recipes,
                             StockTransactionRepository stockTransactions, OptionGroupRepository optionGroups,
                             OptionRepository options, ComboRepository combos, ComboItemRepository comboItems,
-                            RestaurantTableRepository tables, AdminStaffAccountRepository staffAccounts,
+                            RestaurantTableRepository tables, StaffAccountRepository staffAccounts,
                             KitchenAccountRepository kitchenAccounts, ActivityLogRepository activityLogs,
                             PasswordEncoder passwordEncoder, AdminLogService logService) {
         this.stations = stations;

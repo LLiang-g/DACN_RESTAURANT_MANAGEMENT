@@ -3,7 +3,7 @@ package com.sccgroup.restaurant_management.admin.security;
 import com.sccgroup.restaurant_management.common.security.JwtUtil;
 import com.sccgroup.restaurant_management.domain.entity.account.StaffAccount;
 import com.sccgroup.restaurant_management.domain.entity.account.StaffRole;
-import com.sccgroup.restaurant_management.domain.repository.AdminStaffAccountRepository;
+import com.sccgroup.restaurant_management.domain.repository.account.StaffAccountRepository;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class AdminAuthTest {
     @EnableWebSecurity
     @Import({AdminSecurityConfig.class, AdminAuthController.class, com.sccgroup.restaurant_management.config.CorsConfig.class})
     static class Config {
-        @Bean AdminStaffAccountRepository accounts() { return mock(AdminStaffAccountRepository.class); }
+        @Bean StaffAccountRepository accounts() { return mock(StaffAccountRepository.class); }
         @Bean PasswordEncoder encoder() { return new BCryptPasswordEncoder(); }
         @Bean JwtUtil jwt() {
             JwtUtil jwt = new JwtUtil();
@@ -47,7 +47,7 @@ class AdminAuthTest {
     }
 
     @Autowired WebApplicationContext context;
-    @Autowired AdminStaffAccountRepository accounts;
+    @Autowired StaffAccountRepository accounts;
     @Autowired PasswordEncoder encoder;
     @Autowired JwtUtil jwt;
     MockMvc mvc;

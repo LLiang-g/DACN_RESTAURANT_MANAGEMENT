@@ -1,4 +1,4 @@
-package com.sccgroup.restaurant_management.domain.repository;
+package com.sccgroup.restaurant_management.domain.repository.menu;
 
 import com.sccgroup.restaurant_management.domain.entity.menu.OptionGroup;
 import org.springframework.data.jpa.repository.JpaRepository;

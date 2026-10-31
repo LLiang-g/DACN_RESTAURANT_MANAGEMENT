@@ -4,7 +4,7 @@ import com.sccgroup.restaurant_management.common.exception.ErrorResponse;
 import com.sccgroup.restaurant_management.common.security.AppUserPrincipal;
 import com.sccgroup.restaurant_management.common.security.JwtUtil;
 import com.sccgroup.restaurant_management.domain.entity.account.StaffRole;
-import com.sccgroup.restaurant_management.domain.repository.AdminStaffAccountRepository;
+import com.sccgroup.restaurant_management.domain.repository.account.StaffAccountRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,12 +16,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin/auth")
 public class AdminAuthController {
-    private final AdminStaffAccountRepository accounts;
+    private final StaffAccountRepository accounts;
     private final PasswordEncoder encoder;
     private final JwtUtil jwt;
     private final String dummyHash;
 
-    public AdminAuthController(AdminStaffAccountRepository accounts, PasswordEncoder encoder, JwtUtil jwt) {
+    public AdminAuthController(StaffAccountRepository accounts, PasswordEncoder encoder, JwtUtil jwt) {
         this.accounts = accounts;
         this.encoder = encoder;
         this.jwt = jwt;

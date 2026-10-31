@@ -10,5 +10,8 @@ import java.util.List;
 public interface OrderItemOptionRepository extends JpaRepository<OrderItemOption, Long> {
 
     @EntityGraph(attributePaths = {"option", "option.ingredient"})
+
     List<OrderItemOption> findByOrderItemIdIn(Collection<Long> orderItemIds);
+
+    List<OrderItemOption> findByOrderItemId(Long orderItemId);
 }

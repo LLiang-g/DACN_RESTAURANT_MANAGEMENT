@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -30,7 +31,7 @@ public class KdsService {
 
     /** Món nào thì hiện trên màn hình bếp. */
     private static final List<OrderItemStatus> BOARD_STATUSES =
-            List.of(OrderItemStatus.CONFIRMED, OrderItemStatus.COOKING, OrderItemStatus.DONE);
+            List.of(OrderItemStatus.CONFIRMED, OrderItemStatus.COOKING, OrderItemStatus.DONE, OrderItemStatus.SERVED);
 
     private final OrderItemRepository orderItemRepository;
     private final KdsStockRepository stockRepository;
@@ -55,10 +56,14 @@ public class KdsService {
 
     // ------------------------------------------------------------------ Lấy danh sách
 
-    /** Toàn bộ order còn món chờ nấu / đang nấu / đã xong, order cũ nhất trước. Khu bếp nào cũng thấy hết. */
+    /**
+     * Toàn bộ order của NGÀY HÔM NAY (theo giờ máy chạy backend), order cũ nhất trước, kể cả món đã xong/đã phục vụ
+     * nên thẻ order không biến mất giữa ngày. Khu bếp nào cũng thấy hết.
+     */
     @Transactional(readOnly = true)
     public List<KdsOrderDto> getBoard() {
-        List<OrderItem> items = orderItemRepository.findForKds(BOARD_STATUSES);
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        List<OrderItem> items = orderItemRepository.findForKds(BOARD_STATUSES, startOfToday, startOfToday.plusDays(1));
         if (items.isEmpty()) return List.of();
 
         Map<Long, List<String>> optionsByItem = new HashMap<>();
@@ -203,7 +208,7 @@ public class KdsService {
      */
     private void autoStartNextOrder(Long stationId, AppUserPrincipal principal, LocalDateTime now) {
         List<Long> next = orderItemRepository.findOrderIdsWithStatusForStation(
-                OrderItemStatus.CONFIRMED, stationId, PageRequest.of(0, 1));
+                OrderItemStatus.CONFIRMED, stationId, LocalDate.now().atStartOfDay(), PageRequest.of(0, 1));
         if (next.isEmpty()) return;
 
         for (OrderItem candidate : orderItemRepository.findByOrderIdAndStationIdForUpdate(next.get(0), stationId)) {
