@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/customer/**").permitAll() // khách không đăng nhập
+                        .requestMatchers("/api/payments/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()            // WebSocket handshake
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/pos/**").hasAnyRole("ADMIN", "RECEPTIONIST")

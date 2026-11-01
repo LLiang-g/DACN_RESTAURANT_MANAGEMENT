@@ -4,7 +4,9 @@ import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
 import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -42,4 +44,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     order by i.id desc
     """)
     List<Invoice> findLatestByTableIdsOrderByIdDesc(@Param("tableIds") List<Long> tableIds);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invoice i where i.id = :id")
+    Optional<Invoice> findByIdForUpdate(@Param("id") Long id);
+
 }

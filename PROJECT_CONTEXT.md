@@ -471,4 +471,16 @@ trong posInvoiceService có kdsNeedsRefresh :
 Nhưng món CONFIRMED (đã duyệt, đang hiện trên màn hình bếp) mà bị buộc chuyển REJECTED do hủy hóa đơn — bếp phải được báo để gỡ món đó khỏi màn hình,
 nếu không sẽ tiếp tục nấu cho 1 hóa đơn đã hủy. Dùng Map.of("type", "CHANGED") gửi lên /topic/kds đúng định dạng KdsEventPublisher đang dùng (theo context: nội dung {"type":"CHANGED"},
 màn hình bếp nhận được thì tự tải lại danh sách)
-  
+
+tổng quan luồng thanh toán với VNpay
+POS ──POST /api/pos/invoices/{id}/payments──► PaymentService.create()
+├─ khóa hóa đơn, kiểm tra OPEN, không còn món PENDING
+├─ tạo PaymentTransaction (PENDING, txnRef duy nhất)
+└─ provider.initiate()  → payUrl (VNPay) hoặc null (Mock)
+
+Ngân hàng/VNPay ─POST /api/payments/mock/webhook─► PaymentService.applyResult()
+├─ khóa dòng giao dịch, nếu đã xử lý thì trả lại (idempotent)
+├─ so số tiền
+└─ PosInvoiceService.markPaidOnline() → PAID + đẩy /topic/pos
+
+

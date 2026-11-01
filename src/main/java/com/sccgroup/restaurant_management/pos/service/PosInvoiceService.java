@@ -1,6 +1,7 @@
 package com.sccgroup.restaurant_management.pos.service;
 
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
+import com.sccgroup.restaurant_management.common.exception.ConflictException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.common.realtime.InvoiceStatusEvent;
 import com.sccgroup.restaurant_management.common.realtime.RealtimeEventPublisher;
@@ -84,6 +85,51 @@ public class PosInvoiceService {
         );
     }
 
+
+
+    private Invoice lockOpenInvoiceOrThrow(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        if (invoice.getStatus() != InvoiceStatus.OPEN) {
+            throw new ConflictException("INVOICE_NOT_OPEN", "Hóa đơn không còn ở trạng thái mở");
+        }
+        return invoice;
+    }
+
+    /** Kiểm tra hóa đơn có thể thanh toán, trả về tổng tiền hiện tại. Gọi lúc tạo giao dịch. */
+    @Transactional
+    public BigDecimal preparePayment(Long invoiceId) {
+        lockOpenInvoiceOrThrow(invoiceId);
+        List<OrderItem> items = loadInvoiceItems(invoiceId);
+        if (items.stream().anyMatch(oi -> oi.getStatus() == OrderItemStatus.PENDING)) {
+            throw new BusinessException("INVOICE_HAS_PENDING_ITEMS",
+                    "Hóa đơn còn món chưa được duyệt, phải duyệt hoặc từ chối trước khi thanh toán");
+        }
+        return calculateTotal(items, loadInvoiceCombos(invoiceId));
+    }
+
+    /** Đóng hóa đơn khi đối tác báo tiền đã về. */
+    @Transactional
+    public void markPaidOnline(Long invoiceId, String providerRef, BigDecimal paidAmount) {
+        Invoice invoice = lockOpenInvoiceOrThrow(invoiceId);
+
+        // Tổng tiền có thể đã đổi từ lúc tạo giao dịch (vd: lễ tân trả một món). Không đóng hóa đơn nếu lệch.
+        BigDecimal currentTotal = calculateTotal(loadInvoiceItems(invoiceId), loadInvoiceCombos(invoiceId));
+        if (currentTotal.compareTo(paidAmount) != 0) {
+            throw new ConflictException("INVOICE_TOTAL_CHANGED",
+                    "Tổng tiền hóa đơn đã thay đổi so với số tiền đã thanh toán");
+        }
+
+        invoice.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+        invoice.setBankTransactionRef(providerRef);
+        invoice.setStatus(InvoiceStatus.PAID);
+        invoice.setPaidAt(LocalDateTime.now());
+        invoiceRepository.save(invoice);
+
+        realtimeEventPublisher.publishAfterCommit("/topic/pos",
+                new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name()));
+    }
+
     @Transactional
     public void pay(Long invoiceId, PayRequest request) {
         Invoice invoice = getOpenInvoiceOrThrow(invoiceId);
@@ -104,7 +150,8 @@ public class PosInvoiceService {
             invoice.setAmountReceived(request.amountReceived());
             invoice.setChangeAmount(request.amountReceived().subtract(total));
         } else {
-            invoice.setBankTransactionRef(request.bankTransactionRef());
+            throw new BusinessException("USE_ONLINE_PAYMENT",
+                    "Chuyển khoản phải thanh toán qua cổng online, không nhập tay mã giao dịch");
         }
 
         invoice.setPaymentMethod(request.paymentMethod());
@@ -114,7 +161,7 @@ public class PosInvoiceService {
 
         realtimeEventPublisher.publishAfterCommit("/topic/pos",
                 new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name()));
-        tableReleaseService.releaseTableIfSettled(invoiceId);
+
     }
 
     @Transactional

@@ -1,5 +1,8 @@
 import { apiClient } from './client';
-import type { PendingOrder, TableOverview,InvoiceDetail, PayRequest,CallStaffRequest, } from '../types/pos';
+import type {
+  PendingOrder, TableOverview, InvoiceDetail, PayRequest, CallStaffRequest,
+  PaymentResponse, PaymentProviderType,
+} from '../types/pos';
 
 export const posApi = {
   getPendingOrders: () =>
@@ -40,5 +43,15 @@ export const posApi = {
 
   undoReturnItem: (orderItemId: number) =>
   apiClient.patch(`/api/pos/order-items/${orderItemId}/undo-return`),
+  
+  createPayment: (invoiceId: number, provider: PaymentProviderType) =>
+    apiClient
+      .post<PaymentResponse>(`/api/pos/invoices/${invoiceId}/payments`, { provider })
+      .then((r) => r.data),
 
+  getPayment: (txnRef: string) =>
+    apiClient.get<PaymentResponse>(`/api/pos/payments/${txnRef}`).then((r) => r.data),
+
+  mockConfirmPayment: (txnRef: string) =>
+    apiClient.post(`/api/pos/payments/${txnRef}/mock-confirm`),
 };

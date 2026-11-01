@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { InvoiceDetail, PaymentMethod } from '../types/pos';
+import type { InvoiceDetail, PaymentMethod, PaymentResponse,PaymentProviderType } from '../types/pos';
 import { posApi } from '../api/posApi';
 import InvoiceReceipt from './InvoiceReceipt';
+import PaymentPanel from './PaymentPanel';
 
 interface Props {
   invoiceId: number;
@@ -13,11 +14,15 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState<PaymentMethod>('CASH');
+  const [provider, setProvider] = useState<PaymentProviderType>('VNPAY');
   const [amountReceived, setAmountReceived] = useState('');
-  const [bankRef, setBankRef] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [processingItemId, setProcessingItemId] = useState<number | null>(null);
+
+  // MỚI: giao dịch thanh toán online đang theo dõi
+  const [payment, setPayment] = useState<PaymentResponse | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
 
   // State cho popup nhập lý do trả món ở giữa màn hình
   const [returningItemId, setReturningItemId] = useState<number | null>(null);
@@ -34,14 +39,36 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
     loadInvoice();
   }, [invoiceId]);
 
+  // MỚI: hỏi server trạng thái giao dịch; nếu đã SUCCESS thì tải lại hóa đơn (lúc này là PAID)
+  const syncPaymentStatus = async (txnRef: string) => {
+    const latest = await posApi.getPayment(txnRef);
+    // Chỉ ghép trạng thái mới vào, giữ nguyên payUrl vì API GET không trả payUrl
+    setPayment((prev) => (prev && prev.txnRef === txnRef ? { ...prev, status: latest.status } : prev));
+    if (latest.status === 'SUCCESS') {
+      await loadInvoice();
+      onChanged();
+    }
+  };
+
+  // MỚI: polling 2 giây/lần khi đang chờ
+  useEffect(() => {
+    if (!payment || payment.status !== 'PENDING') return;
+    const timer = setInterval(() => {
+      syncPaymentStatus(payment.txnRef).catch(() => {
+        // Lỗi mạng tạm thời: bỏ qua, lần poll sau sẽ thử lại
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [payment?.txnRef, payment?.status]);
+
   const handlePay = async () => {
     setError(null);
     setSubmitting(true);
     try {
+      // Chỉ còn tiền mặt đi qua đường này; chuyển khoản đi qua cổng online
       await posApi.payInvoice(invoiceId, {
-        paymentMethod: method,
-        amountReceived: method === 'CASH' ? Number(amountReceived) : undefined,
-        bankTransactionRef: method === 'BANK_TRANSFER' ? bankRef : undefined,
+        paymentMethod: 'CASH',
+        amountReceived: Number(amountReceived),
       });
       onChanged();
       onClose();
@@ -49,6 +76,35 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
       setError(err?.response?.data?.message ?? 'Thanh toán thất bại.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // MỚI
+  const handleCreatePayment = async () => {
+    setError(null);
+    setPaymentBusy(true);
+    try {
+      const created = await posApi.createPayment(invoiceId, provider);// k mock nữa
+      setPayment(created);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Không tạo được giao dịch thanh toán.');
+    } finally {
+      setPaymentBusy(false);
+    }
+  };
+
+  // MỚI: nút giả lập tiền về (chỉ dùng khi demo, provider MOCK)
+  const handleMockConfirm = async () => {
+    if (!payment) return;
+    setError(null);
+    setPaymentBusy(true);
+    try {
+      await posApi.mockConfirmPayment(payment.txnRef);
+      await syncPaymentStatus(payment.txnRef);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Giả lập thanh toán thất bại.');
+    } finally {
+      setPaymentBusy(false);
     }
   };
 
@@ -148,11 +204,14 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
     invoice?.items.some((i) => ['CONFIRMED', 'COOKING', 'DONE'].includes(i.status)) ||
     invoice?.combos.some((c) => c.items.some((i) => ['CONFIRMED', 'COOKING', 'DONE'].includes(i.status)));
 
+  // MỚI: đang chờ tiền về thì khóa các thao tác có thể làm đổi hóa đơn
+  const waitingPayment = payment?.status === 'PENDING';
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal invoice-modal" onClick={(e) => e.stopPropagation()}>
         {loading && <p>Đang tải...</p>}
-        
+
         {invoice && (
           <>
             <h4>Hóa đơn — Bàn {invoice.tableNumber} ( {invoice.floor})</h4>
@@ -174,20 +233,20 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                     </button>
                   )}
 
-                  {item.status === 'SERVED' && (
+                  {item.status === 'SERVED' && invoice.status === 'OPEN' && (
                     <button
                       className="return-btn"
-                      disabled={processingItemId === item.orderItemId}
+                      disabled={processingItemId === item.orderItemId || waitingPayment}
                       onClick={() => openReturnModal(item.orderItemId)}
                     >
                       Trả món
                     </button>
                   )}
 
-                  {item.status === 'RETURNED' && (
+                  {item.status === 'RETURNED' && invoice.status === 'OPEN' &&  (
                     <button
                       className="undo-return-btn"
-                      disabled={processingItemId === item.orderItemId}
+                      disabled={processingItemId === item.orderItemId || waitingPayment}
                       onClick={() => handleUndoReturn(item.orderItemId)}
                     >
                       Hoàn tác
@@ -217,19 +276,19 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                             Phục vụ
                           </button>
                         )}
-                        {ci.status === 'SERVED' && (
+                        {ci.status === 'SERVED' && invoice.status === 'OPEN' &&  (
                           <button
                             className="return-btn"
-                            disabled={processingItemId === ci.orderItemId}
+                            disabled={processingItemId === ci.orderItemId || waitingPayment}
                             onClick={() => openReturnModal(ci.orderItemId)}
                           >
                             Trả món
                           </button>
                         )}
-                        {ci.status === 'RETURNED' && (
+                        {ci.status === 'RETURNED' && invoice.status === 'OPEN' &&  (
                           <button
                             className="undo-return-btn"
-                            disabled={processingItemId === ci.orderItemId}
+                            disabled={processingItemId === ci.orderItemId || waitingPayment}
                             onClick={() => handleUndoReturn(ci.orderItemId)}
                           >
                             Hoàn tác
@@ -255,58 +314,97 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                 )}
                 {!hasPending && hasUnservedApproved && (
                   <p className="invoice-warning">
-                    Vẫn còn món chưa phục vụ xong 
+                    Vẫn còn món chưa phục vụ xong
                   </p>
                 )}
 
                 <div className="payment-form">
                   <label>
-                    <input type="radio" checked={method === 'CASH'} onChange={() => setMethod('CASH')} />
+                    <input
+                      type="radio"
+                      checked={method === 'CASH'}
+                      disabled={waitingPayment}
+                      onChange={() => setMethod('CASH')}
+                    />
                     Tiền mặt
                   </label>
                   <label>
-                    <input type="radio" checked={method === 'BANK_TRANSFER'} onChange={() => setMethod('BANK_TRANSFER')} />
-                    VietQR
+                    <input
+                      type="radio"
+                      checked={method === 'BANK_TRANSFER'}
+                      disabled={waitingPayment}
+                      onChange={() => setMethod('BANK_TRANSFER')}
+                    />
+                    Chuyển khoản / QR
                   </label>
+                  {method === 'BANK_TRANSFER' && (
+                    <div className="provider-choice">
+                      <label>
+                        <input type="radio" checked={provider === 'VNPAY'} disabled={waitingPayment}
+                              onChange={() => setProvider('VNPAY')} />
+                        VNPay (quét QR)
+                      </label>
+                      
+                    </div>
+                  )}
 
-                  {method === 'CASH' ? (
+                  {method === 'CASH' && (
                     <input
                       type="number"
                       placeholder="Số tiền khách đưa"
                       value={amountReceived}
                       onChange={(e) => setAmountReceived(e.target.value)}
                     />
-                  ) : (
-                    <input
-                      placeholder="Mã giao dịch"
-                      value={bankRef}
-                      onChange={(e) => setBankRef(e.target.value)}
-                    />
                   )}
                 </div>
               </>
             )}
 
+            {/* MỚI: màn hình chờ / kết quả thanh toán online */}
+            {payment && (
+              <PaymentPanel
+                payment={payment}
+                busy={paymentBusy}
+                onMockConfirm={handleMockConfirm}
+                onBack={() => setPayment(null)}
+              />
+            )}
+
             {error && <p className="login-error">{error}</p>}
 
             <div className="modal-actions">
-              <button className="free-table-btn" onClick={handleFreeTable} disabled={submitting}>
+              <button className="free-table-btn" onClick={handleFreeTable} disabled={submitting || waitingPayment}>
                 Đưa bàn về Trống
               </button>
               <button onClick={onClose} disabled={submitting}>Đóng</button>
-              
+
               <button className="print-btn" onClick={() => window.print()} disabled={submitting}>
                 In hóa đơn
               </button>
 
               {invoice.status === 'OPEN' && (
                 <>
-                  <button className="cancel-invoice-btn" onClick={handleCancelInvoice} disabled={submitting}>
+                  <button
+                    className="cancel-invoice-btn"
+                    onClick={handleCancelInvoice}
+                    disabled={submitting || waitingPayment}
+                  >
                     Hủy hóa đơn
                   </button>
-                  <button className="pay-btn" onClick={handlePay} disabled={submitting || hasPending}>
-                    Thanh toán
-                  </button>
+
+                  {method === 'CASH' ? (
+                    <button className="pay-btn" onClick={handlePay} disabled={submitting || hasPending}>
+                      Thanh toán
+                    </button>
+                  ) : (
+                    <button
+                      className="pay-btn"
+                      onClick={handleCreatePayment}
+                      disabled={submitting || hasPending || paymentBusy || waitingPayment}
+                    >
+                      Tạo thanh toán online
+                    </button>
+                  )}
                 </>
               )}
             </div>

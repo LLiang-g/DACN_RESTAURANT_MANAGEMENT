@@ -10,7 +10,10 @@ import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.sccgroup.restaurant_management.common.exception.ConflictException;
+import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
+import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
+import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
 import java.time.LocalDateTime;
 
 @Service
@@ -18,14 +21,14 @@ public class PosOrderActionService {
 
     private final OrderItemRepository orderItemRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
-
+    private final InvoiceRepository invoiceRepository;
 
     public PosOrderActionService(OrderItemRepository orderItemRepository,
                                  RealtimeEventPublisher realtimeEventPublisher,
-                                 TableReleaseService tableReleaseService) {
+                                 InvoiceRepository invoiceRepository) {
         this.orderItemRepository = orderItemRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
-
+        this.invoiceRepository = invoiceRepository;
     }
 
     @Transactional
@@ -82,6 +85,20 @@ public class PosOrderActionService {
         return item;
     }
 
+    /**
+     * Khóa dòng hóa đơn của món rồi bắt buộc hóa đơn còn OPEN.
+     * Trả món / hoàn tác làm đổi tổng tiền, nên không được chạy xen kẽ với việc thanh toán.
+     */
+    private void lockOpenInvoiceOf(OrderItem item) {
+        Long invoiceId = item.getOrder().getInvoice().getId();
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        if (invoice.getStatus() != InvoiceStatus.OPEN) {
+            throw new ConflictException("INVOICE_NOT_OPEN",
+                    "Hóa đơn không còn mở, không thể trả hoặc hoàn tác món");
+        }
+    }
+
 
     @Transactional
     public void markServed(Long orderItemId) {
@@ -110,6 +127,7 @@ public class PosOrderActionService {
         OrderItem item = orderItemRepository.findById(orderItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
 
+        lockOpenInvoiceOf(item);
         if (item.getStatus() != OrderItemStatus.RETURNED) {
             throw new BusinessException("ORDER_ITEM_NOT_UNDOABLE",
                     "Chỉ có thể hoàn tác món đang ở trạng thái RETURNED");
@@ -134,6 +152,7 @@ public class PosOrderActionService {
         OrderItem item = orderItemRepository.findById(orderItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
 
+        lockOpenInvoiceOf(item);
         if (item.getStatus() != OrderItemStatus.SERVED) {
             throw new BusinessException("ORDER_ITEM_NOT_RETURNABLE",
                     "Chỉ có thể đánh dấu trả món khi món đã ở trạng thái SERVED");

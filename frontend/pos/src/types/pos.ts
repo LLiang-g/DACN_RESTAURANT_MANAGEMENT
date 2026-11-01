@@ -88,3 +88,15 @@ export interface InvoiceComboItem {
   quantity: number;
   status: string;
 }
+
+
+export type PaymentProviderType = 'MOCK' | 'VNPAY';
+export type PaymentTxStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED';
+
+export interface PaymentResponse {
+  txnRef: string;
+  provider: PaymentProviderType;
+  amount: number;
+  status: PaymentTxStatus;
+  payUrl: string | null;
+}

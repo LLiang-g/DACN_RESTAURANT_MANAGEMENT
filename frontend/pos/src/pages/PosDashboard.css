@@ -667,3 +667,48 @@
   flex: 1 1 auto;
   min-width: 110px;      /* đảm bảo chữ trong nút không bị bóp quá chật */
 }
+
+
+
+.payment-panel {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  background: #f6f8fa;
+}
+.payment-panel.success { background: #e6f7ec; border-color: #2da44e; }
+.payment-panel.failed,
+.payment-panel.expired { background: #fdecea; border-color: #d1242f; }
+.payment-panel-title { font-weight: 600; margin: 0 0 8px; }
+.payment-panel-ref { font-size: 12px; color: #57606a; word-break: break-all; }
+.payment-panel-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* QR bên trái, thông tin bên phải; màn hình hẹp thì tự xếp xuống */
+.payment-panel-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.payment-qr {
+  flex: 0 0 auto;
+  background: #fff;       /* nền sáng để máy quét đọc được, kể cả khi giao diện tối */
+  padding: 8px;
+  border-radius: 8px;
+  line-height: 0;
+}
+.payment-info {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.payment-info p { margin: 0 0 6px; }
+.payment-qr-hint { font-size: 13px; color: #57606a; }
+
+/* Modal cuộn được khi nội dung vượt chiều cao màn hình */
+.invoice-modal {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.payment-qr svg { background: #fff; border-radius: 8px; }
+.payment-qr-hint { margin: 0; font-size: 13px; color: #57606a; }
