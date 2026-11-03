@@ -12,6 +12,16 @@ import "./App.css"
 
 const COMBO_TAB = "combo"
 
+function removeVietnameseTones(str: string): string {
+  return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .toLowerCase()
+      .trim();
+}
+
 export default function App() {
   // QR của bàn trỏ tới: http://<host>:5173/?table=1
   const tableId = Number(new URLSearchParams(window.location.search).get("table"))
@@ -29,6 +39,7 @@ export default function App() {
   const [result, setResult] = useState<OrderResult | null>(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [staffMessage, setStaffMessage] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("");
   const [addedToastKey, setAddedToastKey] = useState(0) // đổi giá trị mỗi lần thêm để hiện lại thông báo
 
   useEffect(() => {
@@ -54,6 +65,33 @@ export default function App() {
   ]
   const tab = activeTab || tabs[0]?.key
   const category = menu.categories.find((menuCategory) => `c${menuCategory.id}` === tab)
+
+  const keyword = removeVietnameseTones(searchQuery)
+  const isSearching = keyword.length > 0
+
+  // Khi đang tìm kiếm: lọc trên toàn bộ combo và tất cả danh mục
+  // Khi không tìm kiếm: hiển thị theo tab hiện tại
+  const displayedCombos = isSearching
+      ? menu.combos.filter(
+          (combo) =>
+              removeVietnameseTones(combo.name).includes(keyword) ||
+              combo.items.some((item) => removeVietnameseTones(item.foodName).includes(keyword))
+      )
+      : tab === COMBO_TAB
+          ? menu.combos
+          : []
+
+  const displayedFoods = isSearching
+      ? menu.categories
+          .flatMap((c) => c.foods)
+          .filter(
+              (food) =>
+                  removeVietnameseTones(food.name).includes(keyword) ||
+                  (food.description && removeVietnameseTones(food.description).includes(keyword))
+          )
+      : tab !== COMBO_TAB
+          ? category?.foods ?? []
+          : []
 
   function addLine(line: CartLine) {
     setCart((currentCart) => addToCart(currentCart, line))
@@ -112,49 +150,106 @@ export default function App() {
           <InvoicePage tableId={tableId} />
       ) : (
           <>
-          <CategoryTabs tabs={tabs} activeKey={tab} onSelect={setActiveTab} />
-      <main className="customer-list">
-        {tab === COMBO_TAB
-          ? menu.combos.map((combo) => (
-                <div
-                    key={combo.id}
-                    className={"customer-card clickable" + (combo.available ? "" : " off")}
-                    onClick={() => combo.available && setComboModal(combo)}
-                >
-                <div className="customer-card-body">
-                  <div className="customer-card-name">{combo.name}</div>
-                  <div className="customer-muted">{combo.items.map((comboItem) => `${comboItem.quantity} ${comboItem.foodName}`).join(" + ")}</div>
-                  {combo.remainingPortions != null && combo.available && <div className="customer-muted">Còn {combo.remainingPortions} suất</div>}
-                  <div>
-                    {combo.originalPrice > combo.price && <s className="customer-muted">{formatVnd(combo.originalPrice)} </s>}
-                    <b>{formatVnd(combo.price)}</b>
-                  </div>
-                  {!combo.available && <div className="customer-soldout">Tạm hết</div>}
-                </div>
+            {/* 1. THANH TÌM KIẾM MÓN ĂN */}
+            <div className="customer-search" style={{ padding: "8px 12px", background: "#fff" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Tìm món ăn, combo..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 34px 10px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid #ddd",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                />
+                {searchQuery && (
+                    <button
+                        type="button"
+                        aria-label="Xóa tìm kiếm"
+                        onClick={() => setSearchQuery("")}
+                        style={{
+                          position: "absolute",
+                          right: "8px",
+                          background: "none",
+                          border: "none",
+                          fontSize: "16px",
+                          color: "#888",
+                          cursor: "pointer",
+                        }}
+                    >
+                      ✕
+                    </button>
+                )}
               </div>
-            ))
-          : category?.foods.map((food) => (
-                <div
-                    key={food.id}
-                    className={"customer-card clickable" + (food.available ? "" : " off")}
-                    onClick={() => food.available && setFoodModal(food)}
-                >
-                {food.image && <img src={food.image} alt={food.name} />}
-                <div className="customer-card-body">
-                  <div className="customer-card-name">{food.name}</div>
-                  {food.description && <div className="customer-muted">{food.description}</div>}
-                  {food.remainingPortions != null && food.available && <div className="customer-muted">Còn {food.remainingPortions} suất</div>}
-                  <div>
-                    <b>{formatVnd(food.price)}</b>
-                    {food.estimatedCookingTime != null && <span className="customer-muted"> · ~{food.estimatedCookingTime} phút</span>}
+            </div>
+
+            {/* 2. ẨN TAB DANH MỤC KHI ĐANG TÌM KIẾM ĐỂ ĐỠ RỐI, HOẶC GIỮ NGUYÊN */}
+            {!isSearching && <CategoryTabs tabs={tabs} activeKey={tab} onSelect={setActiveTab} />}
+
+            {/* 3. DANH SÁCH MÓN ĂN & COMBO ĐÃ LỌC */}
+            <main className="customer-list">
+              {isSearching && displayedCombos.length === 0 && displayedFoods.length === 0 && (
+                  <div className="customer-center customer-muted" style={{ padding: "32px 16px", textAlign: "center" }}>
+                    Không tìm thấy món nào phù hợp với "{searchQuery}"
                   </div>
-                  {!food.available && <div className="customer-soldout">Tạm hết</div>}
-                </div>
-              </div>
-            ))}
-      </main>
-      </>
-    )}
+              )}
+
+              {displayedCombos.map((combo) => (
+                  <div
+                      key={`combo-${combo.id}`}
+                      className={"customer-card clickable" + (combo.available ? "" : " off")}
+                      onClick={() => combo.available && setComboModal(combo)}
+                  >
+                    <div className="customer-card-body">
+                      <div className="customer-card-name">{combo.name}</div>
+                      <div className="customer-muted">
+                        {combo.items.map((comboItem) => `${comboItem.quantity} ${comboItem.foodName}`).join(" + ")}
+                      </div>
+                      {combo.remainingPortions != null && combo.available && (
+                          <div className="customer-muted">Còn {combo.remainingPortions} suất</div>
+                      )}
+                      <div>
+                        {combo.originalPrice > combo.price && (
+                            <s className="customer-muted">{formatVnd(combo.originalPrice)} </s>
+                        )}
+                        <b>{formatVnd(combo.price)}</b>
+                      </div>
+                      {!combo.available && <div className="customer-soldout">Tạm hết</div>}
+                    </div>
+                  </div>
+              ))}
+
+              {displayedFoods.map((food) => (
+                  <div
+                      key={`food-${food.id}`}
+                      className={"customer-card clickable" + (food.available ? "" : " off")}
+                      onClick={() => food.available && setFoodModal(food)}
+                  >
+                    {food.image && <img src={food.image} alt={food.name} />}
+                    <div className="customer-card-body">
+                      <div className="customer-card-name">{food.name}</div>
+                      {food.description && <div className="customer-muted">{food.description}</div>}
+                      {food.remainingPortions != null && food.available && (
+                          <div className="customer-muted">Còn {food.remainingPortions} suất</div>
+                      )}
+                      <div>
+                        <b>{formatVnd(food.price)}</b>
+                        {food.estimatedCookingTime != null && (
+                            <span className="customer-muted"> · ~{food.estimatedCookingTime} phút</span>
+                        )}
+                      </div>
+                      {!food.available && <div className="customer-soldout">Tạm hết</div>}
+                    </div>
+                  </div>
+              ))}
+            </main>
+          </>
+      )}
       {cart.length > 0 && !invoiceOpen && (
         <button className="customer-cartbar" onClick={() => setCartOpen(true)}>
           <span>🛒 {cartCount(cart)} món</span>
