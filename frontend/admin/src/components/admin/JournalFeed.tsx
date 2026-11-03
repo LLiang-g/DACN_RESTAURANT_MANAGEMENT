@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "../../styles/dashboard-alerts.css";
 import { subscribeAdminChanges } from "../../realtime/adminSocket";
 import { getActivityLogs } from "../../services/adminApi";
@@ -8,7 +8,9 @@ import type { ActivityLog } from "../../types";
 /**
  * Nhật ký tổng hợp hiện thẳng trên Dashboard, tự cập nhật realtime (STOMP /topic/admin/activity).
  * Mặc định là hôm nay (qua nửa đêm tự sang ngày mới), có thể chọn ngày khác để xem lại.
- * Dòng log: "[07:31 30/10/2026]tài khoản đã <hành động> <Đối tượng> : <Chi tiết>".
+ * Dòng log: "[07:31 30/10/2026]tài khoản đã <hành động> <Đối tượng>: <Chi tiết>".
+ * Log cũ ở trên, log mới ở dưới cùng (như khung chat). Đang xem ở cuối log thì tự đẩy log mới lên;
+ * đang cuộn lên xem chỗ khác thì log mới được thêm âm thầm, không làm nhảy vị trí đang đọc.
  */
 export default function JournalFeed() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -18,6 +20,9 @@ export default function JournalFeed() {
   const [today, setToday] = useState(() => localDay());
   const [picked, setPicked] = useState<string | null>(null); // null = đang theo dõi "hôm nay"
   const latest = useRef(0);
+  const logRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true); // đang ở cuối log?
+  const shownDay = useRef("");
 
   const day = picked ?? today;
   const isToday = day === today;
@@ -50,7 +55,23 @@ export default function JournalFeed() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const lines = useMemo(() => journalLines(activities, day), [activities, day]);
+  // journalLines trả mới nhất trước; đảo lại để log mới nằm dưới cùng
+  const lines = useMemo(() => journalLines(activities, day).reverse(), [activities, day]);
+
+  useLayoutEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    if (shownDay.current !== day) {
+      shownDay.current = day; // vừa đổi ngày xem: luôn đưa xuống cuối
+      stickToBottom.current = true;
+    }
+    if (stickToBottom.current) el.scrollTop = el.scrollHeight;
+  }, [lines, day]);
+
+  const onLogScroll = () => {
+    const el = logRef.current;
+    if (el) stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 24;
+  };
 
   const choose = (next: string) => {
     if (!next) return;
@@ -114,7 +135,7 @@ export default function JournalFeed() {
           {error}
         </p>
       )}
-      <div className="journal-log" role="log" aria-live="polite">
+      <div className="journal-log" role="log" aria-live="polite" ref={logRef} onScroll={onLogScroll}>
         {loading ? (
           <p className="journal-empty" role="status">
             Đang tải nhật ký...
