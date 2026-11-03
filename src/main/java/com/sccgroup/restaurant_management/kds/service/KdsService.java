@@ -1,5 +1,6 @@
 package com.sccgroup.restaurant_management.kds.service;
 
+import com.sccgroup.restaurant_management.admin.service.AdminEventPublisher;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.common.security.AppUserPrincipal;
@@ -29,9 +30,13 @@ import java.util.*;
 @Service
 public class KdsService {
 
-    /** Món nào thì hiện trên màn hình bếp. */
-    private static final List<OrderItemStatus> BOARD_STATUSES =
-            List.of(OrderItemStatus.CONFIRMED, OrderItemStatus.COOKING, OrderItemStatus.DONE, OrderItemStatus.SERVED);
+    /** Các trạng thái "đã nấu": chỉ hiện trên bảng bếp trong ngày hôm nay (món CONFIRMED thì hiện hết). */
+    private static final List<OrderItemStatus> STARTED_STATUSES =
+            List.of(OrderItemStatus.COOKING, OrderItemStatus.DONE, OrderItemStatus.SERVED);
+
+    /** Món còn việc phải làm: order cũ còn ít nhất một món thế này thì vẫn hiện (cả các món đã xong của nó). */
+    private static final List<OrderItemStatus> OPEN_STATUSES =
+            List.of(OrderItemStatus.CONFIRMED, OrderItemStatus.COOKING);
 
     private final OrderItemRepository orderItemRepository;
     private final KdsStockRepository stockRepository;
@@ -39,31 +44,35 @@ public class KdsService {
     private final KdsEventPublisher eventPublisher;
     private final StockTransactionRepository stockTransactionRepository;
     private final ActivityLogRepository activityLogRepository;
+    private final AdminEventPublisher adminEvents;
 
     public KdsService(OrderItemRepository orderItemRepository,
                       KdsStockRepository stockRepository,
                       IngredientRequirementCalculator calculator,
                       KdsEventPublisher eventPublisher,
                       StockTransactionRepository stockTransactionRepository,
-                      ActivityLogRepository activityLogRepository) {
+                      ActivityLogRepository activityLogRepository,
+                      AdminEventPublisher adminEvents) {
         this.orderItemRepository = orderItemRepository;
         this.stockRepository = stockRepository;
         this.calculator = calculator;
         this.eventPublisher = eventPublisher;
         this.stockTransactionRepository = stockTransactionRepository;
         this.activityLogRepository = activityLogRepository;
+        this.adminEvents = adminEvents;
     }
 
     // ------------------------------------------------------------------ Lấy danh sách
 
     /**
-     * Toàn bộ order của NGÀY HÔM NAY (theo giờ máy chạy backend), order cũ nhất trước, kể cả món đã xong/đã phục vụ
-     * nên thẻ order không biến mất giữa ngày. Khu bếp nào cũng thấy hết.
+     * Mọi món CHƯA NẤU (kể cả đơn của các ngày trước, để bếp làm sạch dữ liệu) cộng với các món đã nấu / xong /
+     * đã phục vụ của NGÀY HÔM NAY (theo giờ máy chạy backend), order cũ nhất trước, nên thẻ order không biến mất
+     * giữa ngày. Khu bếp nào cũng thấy hết.
      */
     @Transactional(readOnly = true)
     public List<KdsOrderDto> getBoard() {
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-        List<OrderItem> items = orderItemRepository.findForKds(BOARD_STATUSES, startOfToday, startOfToday.plusDays(1));
+        List<OrderItem> items = orderItemRepository.findForKds(OrderItemStatus.CONFIRMED, STARTED_STATUSES, OPEN_STATUSES, startOfToday);
         if (items.isEmpty()) return List.of();
 
         Map<Long, List<String>> optionsByItem = new HashMap<>();
@@ -248,5 +257,6 @@ public class KdsService {
         String detail = item.getFood().getName() + " x" + item.getQuantity();
         activityLogRepository.save(new ActivityLog(principal.getAccountId(), AccountType.KITCHEN, action,
                 "order_item", item.getId(), detail, now));
+        adminEvents.publishChanged(); // kho vừa đổi / có log mới: báo cho Dashboard admin cập nhật realtime
     }
 }

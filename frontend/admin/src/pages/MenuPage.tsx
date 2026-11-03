@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import RecipeEditor from "../components/admin/RecipeEditor";
+import RecipeEditor, { type RecipeDraft } from "../components/admin/RecipeEditor";
+import FoodOptionsEditor from "../components/admin/FoodOptionsEditor";
+import { optionPayload, type OptionDraft } from "../utils/foodOptions";
 import PageHeader from "../components/ui/PageHeader";
 import Tabs from "../components/ui/Tabs";
 import DataTable, { type Column } from "../components/ui/DataTable";
@@ -23,8 +25,6 @@ import {
   deleteOptionGroup,
   getOptions,
   createOption,
-  updateOption,
-  deleteOption,
   getCombos,
   createCombo,
   updateCombo,
@@ -33,6 +33,7 @@ import {
   addComboItem,
   deleteComboItem,
   getIngredients,
+  createRecipe,
 } from "../services/adminApi";
 
 import { formatVND } from "../utils/format";
@@ -48,20 +49,20 @@ import type {
   TabItem,
   DiscountType,
   SelectionType,
-  AdjustType,
 } from "../types";
 
 const TABS: TabItem[] = [
   { key: "dishes", label: "Món ăn" },
   { key: "categories", label: "Danh mục" },
   { key: "optionGroups", label: "Nhóm option" },
-  { key: "options", label: "Option" },
   { key: "combos", label: "Combo" },
 ];
 
 export default function MenuPage() {
-  const [recipeFood, setRecipeFood] = useState<Food | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Công thức / option nhập sẵn trong form thêm món (lưu cùng lúc khi bấm Lưu món)
+  const [draftRecipes, setDraftRecipes] = useState<RecipeDraft[]>([]);
+  const [draftOptions, setDraftOptions] = useState<OptionDraft[]>([]);
   const [tab, setTab] = useState("dishes");
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -105,28 +106,6 @@ export default function MenuPage() {
   }>({
     name: "",
     selectionType: "SINGLE_CHOICE",
-  });
-
-  const [optionModalOpen, setOptionModalOpen] = useState(false);
-  const [editingOption, setEditingOption] = useState<Option | null>(null);
-  const [optionForm, setOptionForm] = useState<{
-    foodId: number;
-    name: string;
-    groupId: number;
-    ingredientId: number;
-    adjustAmount: number;
-    adjustType: AdjustType;
-    priceDelta: number;
-    scaleFactor: number;
-  }>({
-    foodId: 0,
-    name: "",
-    groupId: 0,
-    ingredientId: 0,
-    adjustAmount: 0,
-    adjustType: "ADD",
-    priceDelta: 0,
-    scaleFactor: 1,
   });
 
   const [comboModalOpen, setComboModalOpen] = useState(false);
@@ -213,6 +192,8 @@ export default function MenuPage() {
   // Food handlers
   const handleOpenAddFood = () => {
     setEditingFood(null);
+    setDraftRecipes([]);
+    setDraftOptions([]);
     setFoodForm({
       name: "",
       categoryId: categories[0]?.id || 0,
@@ -226,6 +207,8 @@ export default function MenuPage() {
 
   const handleOpenEditFood = (food: Food) => {
     setEditingFood(food);
+    setDraftRecipes([]);
+    setDraftOptions([]);
     setFoodForm({
       name: food.name,
       categoryId: food.category?.id || 0,
@@ -252,8 +235,31 @@ export default function MenuPage() {
         addToast("success", `Đã cập nhật món "${foodForm.name}"`);
       } else {
         const saved = await createFood(foodForm);
-        setEditingFood(saved);
-        addToast("success", `Đã thêm món "${foodForm.name}" thành công`);
+        const failed: string[] = [];
+        for (const line of draftRecipes) {
+          try {
+            await createRecipe({ foodId: saved.id, ingredientId: line.ingredientId, quantityRequired: line.quantityRequired });
+          } catch {
+            failed.push(`nguyên liệu ${ingredients.find(i => i.id === line.ingredientId)?.name ?? `#${line.ingredientId}`}`);
+          }
+        }
+        for (const option of draftOptions) {
+          try {
+            await createOption(optionPayload(saved.id, option));
+          } catch {
+            failed.push(`option ${option.name}`);
+          }
+        }
+        setDraftRecipes([]);
+        setDraftOptions([]);
+        if (failed.length) {
+          // Món đã tạo nhưng thiếu một số phần: giữ form mở ở chế độ sửa để bổ sung
+          setEditingFood(saved);
+          addToast("error", `Đã tạo món "${foodForm.name}" nhưng chưa lưu được: ${failed.join(", ")}. Hãy thêm lại trong form.`);
+        } else {
+          setFoodModalOpen(false);
+          addToast("success", `Đã thêm món "${foodForm.name}" thành công`);
+        }
       }
       loadAll();
     } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
@@ -349,72 +355,6 @@ export default function MenuPage() {
     } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
   };
 
-  // Option Handlers
-  const handleOpenAddOption = () => {
-    setEditingOption(null);
-    setOptionForm({
-      foodId: foods[0]?.id || 0,
-      name: "",
-      groupId: optionGroups[0]?.id || 0,
-      ingredientId: 0,
-      adjustAmount: 0,
-      adjustType: "ADD",
-      priceDelta: 0,
-      scaleFactor: 1,
-    });
-    setOptionModalOpen(true);
-  };
-
-  const handleOpenEditOption = (opt: Option) => {
-    setEditingOption(opt);
-    setOptionForm({
-      foodId: opt.food?.id || 0,
-      name: opt.name,
-      groupId: opt.optionGroup?.id || 0,
-      ingredientId: opt.ingredient?.id || 0,
-      adjustAmount: opt.adjustAmount || 0,
-      adjustType: opt.adjustType || "ADD",
-      priceDelta: opt.priceDelta || 0,
-      scaleFactor: opt.scaleFactor || 1,
-    });
-    setOptionModalOpen(true);
-  };
-
-  const handleSaveOption = async () => {
-    if (!optionForm.name.trim()) {
-      addToast("error", "Tên tùy chọn không được để trống");
-      return;
-    }
-    try {
-      const payload = {
-        foodId: optionForm.foodId,
-        name: optionForm.name,
-        groupId: optionForm.groupId,
-        ingredientId: optionForm.ingredientId > 0 ? optionForm.ingredientId : null,
-        adjustAmount: optionForm.adjustAmount > 0 ? optionForm.adjustAmount : null,
-        adjustType: optionForm.adjustAmount > 0 ? optionForm.adjustType : null,
-        priceDelta: optionForm.priceDelta,
-        scaleFactor: optionForm.scaleFactor,
-      };
-      if (editingOption) {
-        await updateOption(editingOption.id, payload);
-      } else {
-        await createOption(payload);
-      }
-      setOptionModalOpen(false);
-      loadAll();
-      addToast("success", "Lưu tùy chọn thành công");
-    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
-  };
-
-  const handleDeleteOption = async (opt: Option) => {
-    if (!window.confirm(`Xóa tùy chọn "${opt.name}"?`)) return;
-    try {
-      await deleteOption(opt.id);
-      loadAll();
-    } catch (error) { addToast("error", error instanceof Error ? error.message : "Không tải/lưu được dữ liệu. Vui lòng thử lại."); }
-  };
-
   // Combo Handlers
   const handleOpenAddCombo = () => {
     setEditingCombo(null);
@@ -479,6 +419,7 @@ export default function MenuPage() {
       });
       const items = await getComboItems(selectedComboForItems.id);
       setComboItems(items);
+      setComboCounts((prev) => ({ ...prev, [selectedComboForItems.id]: items.length }));
       loadAll();
       addToast("success", "Đã thêm món vào combo");
     } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
@@ -490,6 +431,7 @@ export default function MenuPage() {
       await deleteComboItem(selectedComboForItems.id, foodId);
       const items = await getComboItems(selectedComboForItems.id);
       setComboItems(items);
+      setComboCounts((prev) => ({ ...prev, [selectedComboForItems.id]: items.length }));
       addToast("success", "Đã xóa món khỏi combo");
     } catch (error) { addToast("error", error instanceof Error ? error.message : "Không lưu được thay đổi. Vui lòng thử lại."); }
   };
@@ -512,12 +454,6 @@ export default function MenuPage() {
     { key: "selectionType", header: "Kiểu chọn", render: g => <span className="badge">{g.selectionType === "SINGLE_CHOICE" ? "Chọn một" : "Chọn nhiều"}</span> },
     { key: "count", header: "Số option", render: g => options.filter(o => o.optionGroup?.id === g.id).length },
   ];
-  const optionColumns: Column<Option>[] = [
-    { key: "name", header: "Tên", className: "strong" },
-    { key: "food", header: "Món ăn", render: o => o.food?.name || "—" },
-    { key: "optionGroup", header: "Nhóm", render: o => o.optionGroup?.name || "—" },
-    { key: "priceDelta", header: "Giá thêm", render: o => o.priceDelta ? `${o.priceDelta > 0 ? "+" : ""}${formatVND(o.priceDelta)}` : "—" },
-  ];
   const comboColumns: Column<Combo>[] = [
     { key: "name", header: "Tên combo", className: "strong" },
     { key: "discount", header: "Giá bán / Giảm giá", render: c => c.discountType === "PERCENT" ? `${c.discountValue}%` : formatVND(c.discountValue) },
@@ -529,8 +465,8 @@ export default function MenuPage() {
       <Toast toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
       <PageHeader
-        title={{ dishes: "Món ăn", categories: "Danh mục món", optionGroups: "Nhóm option", options: "Option", combos: "Combo" }[tab] ?? "Thực đơn"}
-        subtitle={{ dishes: `${foods.length} món trong thực đơn`, categories: `${categories.length} danh mục`, optionGroups: `${optionGroups.length} nhóm`, options: `${options.length} option`, combos: `${combos.length} combo` }[tab]}
+        title={{ dishes: "Món ăn", categories: "Danh mục món", optionGroups: "Nhóm option", combos: "Combo" }[tab] ?? "Thực đơn"}
+        subtitle={{ dishes: `${foods.length} món trong thực đơn`, categories: `${categories.length} danh mục`, optionGroups: `${optionGroups.length} nhóm`, combos: `${combos.length} combo` }[tab]}
       >
         {tab === "dishes" && (
           <button type="button" className="btn-primary" onClick={handleOpenAddFood}>
@@ -545,11 +481,6 @@ export default function MenuPage() {
         {tab === "optionGroups" && (
           <button type="button" className="btn-primary" onClick={handleOpenAddGroup}>
             + Thêm nhóm
-          </button>
-        )}
-        {tab === "options" && (
-          <button type="button" className="btn-primary" onClick={handleOpenAddOption}>
-            + Thêm option
           </button>
         )}
         {tab === "combos" && (
@@ -590,12 +521,10 @@ export default function MenuPage() {
             rows={filteredFoods}
             empty="Không tìm thấy món ăn phù hợp"
             actions={(f) => (
-              <>
-              <button className="link" onClick={() => setRecipeFood(f)}>Công thức</button>
               <RowActions
                 onEdit={() => handleOpenEditFood(f)}
                 onDelete={() => handleDeleteFood(f)}
-              /></>
+              />
             )}
           />
         </>
@@ -626,21 +555,6 @@ export default function MenuPage() {
             <RowActions
               onEdit={() => handleOpenEditGroup(g)}
               onDelete={() => handleDeleteGroup(g)}
-            />
-          )}
-        />
-      )}
-
-      {/* TAB 4: TÙY CHỌN */}
-      {tab === "options" && (
-        <DataTable
-          columns={optionColumns}
-          rows={options}
-          empty="Chưa có tùy chọn nào. Bấm '+ Thêm option' để tạo mới."
-          actions={(o) => (
-            <RowActions
-              onEdit={() => handleOpenEditOption(o)}
-              onDelete={() => handleDeleteOption(o)}
             />
           )}
         />
@@ -678,7 +592,7 @@ export default function MenuPage() {
         isOpen={foodModalOpen}
         onClose={() => setFoodModalOpen(false)}
         title={editingFood ? "Sửa món ăn" : "Thêm món ăn"}
-        maxWidth="560px"
+        maxWidth="760px"
         footer={
           <>
             <button
@@ -732,7 +646,12 @@ export default function MenuPage() {
             {uploading && <p role="status">Đang tải ảnh lên...</p>}
             {foodForm.image && <img src={foodForm.image} alt="Ảnh món ăn đã chọn" style={{maxWidth:160,maxHeight:120,display:'block'}} />}
           </div>
-          {editingFood ? <RecipeEditor key={editingFood.id} foodId={editingFood.id} /> : <p>Lưu món ăn trước để thêm công thức ngay tại đây.</p>}
+          {editingFood
+            ? <RecipeEditor key={`recipe-${editingFood.id}`} foodId={editingFood.id} onChanged={loadAll} />
+            : <RecipeEditor key="recipe-new" draft={draftRecipes} onDraftChange={setDraftRecipes} />}
+          {editingFood
+            ? <FoodOptionsEditor key={`options-${editingFood.id}`} foodId={editingFood.id} optionGroups={optionGroups} ingredients={ingredients} onChanged={loadAll} />
+            : <FoodOptionsEditor key="options-new" draft={draftOptions} onDraftChange={setDraftOptions} optionGroups={optionGroups} ingredients={ingredients} />}
 
       </Modal>
 
@@ -847,175 +766,6 @@ export default function MenuPage() {
         </div>
       </Modal>
 
-      {/* MODAL TÙY CHỌN CHI TIẾT */}
-      <Modal
-        isOpen={optionModalOpen}
-        onClose={() => setOptionModalOpen(false)}
-        title={editingOption ? "Sửa tùy chọn món" : "Thêm tùy chọn mới"}
-        maxWidth="580px"
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={() => setOptionModalOpen(false)}
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSaveOption}
-            >
-              Lưu tùy chọn
-            </button>
-          </>
-        }
-      >
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Tên tùy chọn *</label>
-            <input
-              type="text"
-              className="field wide"
-              placeholder="Ví dụ: Size L, Ít cay, Thêm phô mai..."
-              value={optionForm.name}
-              onChange={(e) =>
-                setOptionForm({ ...optionForm, name: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Nhóm tùy chọn *</label>
-            <select
-              className="field wide"
-              value={optionForm.groupId}
-              onChange={(e) =>
-                setOptionForm({ ...optionForm, groupId: Number(e.target.value) })
-              }
-            >
-              <option value={0}>-- Chọn nhóm --</option>
-              {optionGroups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Áp dụng cho món ăn</label>
-          <select
-            className="field wide"
-            value={optionForm.foodId}
-            onChange={(e) =>
-              setOptionForm({ ...optionForm, foodId: Number(e.target.value) })
-            }
-          >
-            <option value={0}>-- Chọn món ăn --</option>
-            {foods.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Chênh lệch giá (VNĐ)</label>
-            <input
-              type="number"
-              className="field wide"
-              placeholder="+20000 hoặc 0"
-              value={optionForm.priceDelta || ""}
-              onChange={(e) =>
-                setOptionForm({
-                  ...optionForm,
-                  priceDelta: Number(e.target.value),
-                })
-              }
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Hệ số định lượng (Scale factor)</label>
-            <input
-              type="number"
-              step="0.1"
-              className="field wide"
-              placeholder="1.0"
-              value={optionForm.scaleFactor || ""}
-              onChange={(e) =>
-                setOptionForm({
-                  ...optionForm,
-                  scaleFactor: Number(e.target.value),
-                })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Điều chỉnh nguyên liệu cụ thể</label>
-            <select
-              className="field wide"
-              value={optionForm.ingredientId}
-              onChange={(e) =>
-                setOptionForm({
-                  ...optionForm,
-                  ingredientId: Number(e.target.value),
-                })
-              }
-            >
-              <option value={0}>-- Không điều chỉnh nguyên liệu --</option>
-              {ingredients.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name} ({i.unit})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Lượng điều chỉnh</label>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <select
-                className="field"
-                style={{ width: "90px" }}
-                value={optionForm.adjustType}
-                onChange={(e) =>
-                  setOptionForm({
-                    ...optionForm,
-                    adjustType: e.target.value as AdjustType,
-                  })
-                }
-              >
-                <option value="ADD">Cộng (+)</option>
-                <option value="REMOVE">Trừ (-)</option>
-              </select>
-              <input
-                type="number"
-                step="0.1"
-                className="field"
-                style={{ flex: 1 }}
-                placeholder="Số lượng"
-                value={optionForm.adjustAmount || ""}
-                onChange={(e) =>
-                  setOptionForm({
-                    ...optionForm,
-                    adjustAmount: Number(e.target.value),
-                  })
-                }
-              />
-            </div>
-          </div>
-        </div>
-      </Modal>
-
       {/* MODAL COMBO */}
       <Modal
         isOpen={comboModalOpen}
@@ -1083,9 +833,6 @@ export default function MenuPage() {
         </div>
       </Modal>
 
-      <Modal isOpen={!!recipeFood} onClose={() => setRecipeFood(null)} title={`Công thức · ${recipeFood?.name || ''}`} maxWidth="760px">
-        {recipeFood && <RecipeEditor key={recipeFood.id} foodId={recipeFood.id} />}
-      </Modal>
       {/* MODAL MÓN TRONG COMBO */}
       <Modal
         isOpen={comboItemsModalOpen}

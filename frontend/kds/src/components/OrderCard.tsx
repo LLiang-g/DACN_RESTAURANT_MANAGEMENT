@@ -1,5 +1,5 @@
 import type { KdsOrder, KdsOrderItem } from '../types';
-import { formatOrderedAgo, getSla, minutesAgo } from '../utils/time';
+import { formatOrderedAgo, getSla, minutesAgo, staleOrderInfo } from '../utils/time';
 import OrderItemRow from './OrderItemRow';
 import OtherStationRow from './OtherStationRow';
 
@@ -38,9 +38,18 @@ export default function OrderCard({
   const total = order.items.length;
   const done = order.items.filter((i) => i.status === 'DONE' || i.status === 'SERVED').length;
   const waited = minutesAgo(order.createdAt, now);
+  const stale = staleOrderInfo(order.createdAt, now);
 
   return (
-    <article className="card">
+      <article className={`card${stale ? ' card--old' : ''}`}>
+        {stale && (
+            <div className="card__warn" role="alert">
+              <span aria-hidden="true">⚠</span>
+              {stale.yesterday
+                  ? `Đây là đơn hôm qua (${stale.date}) — kiểm tra lại trước khi nấu`
+                  : `Đây là đơn của ngày ${stale.date} (${stale.daysAgo} ngày trước) — kiểm tra lại trước khi nấu`}
+            </div>
+        )}
       <header className="card__head">
         <div className="card__table">
           <span className="card__table-no">{order.tableNumber}</span>

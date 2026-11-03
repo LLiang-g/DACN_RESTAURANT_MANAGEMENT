@@ -54,7 +54,6 @@ public class ActivityLog {
     @PrePersist
     private void completeDetail() {
         if (createdAt == null) createdAt = LocalDateTime.now();
-        if (detail == null || detail.isBlank()) detail = "Ghi nhận " + (action == null ? "hoạt động" : action) + " · " + (targetName == null ? (targetType == null ? "hệ thống" : targetType) : targetName);
     }
 
     public Long getId() { return id; }

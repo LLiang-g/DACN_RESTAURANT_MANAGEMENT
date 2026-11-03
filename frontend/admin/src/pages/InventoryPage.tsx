@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "../styles/dashboard-alerts.css";
 import PageHeader from "../components/ui/PageHeader";
 import Modal from "../components/ui/Modal";
 import {
@@ -15,6 +16,7 @@ import type {
   StockTransaction,
   StockTransactionType,
 } from "../types";
+import { subscribeAdminChanges } from "../realtime/adminSocket";
 
 export default function InventoryPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -42,6 +44,8 @@ export default function InventoryPage() {
     quantity: 1,
     note: "",
   });
+  // Realtime: nhập/xuất kho, bếp trừ kho, sửa nguyên liệu ở máy khác... -> tự tải lại số liệu (không hiện "đang tải")
+  useEffect(() => subscribeAdminChanges(() => setRevision((n) => n + 1)), []);
   useEffect(() => {
     let active = true;
     Promise.all([getIngredients(), getStockTransactions()])
@@ -120,6 +124,7 @@ export default function InventoryPage() {
       i.name.toLowerCase().includes(search.toLowerCase()) &&
       (!low || i.stockQuantity <= i.minThreshold),
   );
+  const lowCount = ingredients.filter((i) => i.stockQuantity <= i.minThreshold).length;
   const history = [...transactions]
     .filter((t) => !day || t.createdAt?.slice(0, 10) === day)
     .sort(
@@ -181,6 +186,12 @@ export default function InventoryPage() {
         <p role="status">Đang tải kho...</p>
       ) : tab === "ingredients" ? (
         <>
+          {lowCount > 0 && (
+            <div className="stock-fire" role="alert">
+              <span aria-hidden="true">⚠</span>
+              {lowCount} nguyên liệu đang ở mức tồn thấp — cần nhập kho ngay
+            </div>
+          )}
           <div className="toolbar">
             <input
               className="field"
@@ -209,11 +220,18 @@ export default function InventoryPage() {
               </thead>
               <tbody>
                 {rows.map((i) => (
-                  <tr key={i.id}>
+                  <tr
+                    key={i.id}
+                    className={i.stockQuantity <= i.minThreshold ? "row-low-stock" : undefined}
+                  >
                     <td>{i.name}</td>
                     <td>
                       {formatNumber(i.stockQuantity)} {i.unit}
-                      {i.stockQuantity <= i.minThreshold ? " · Tồn thấp" : ""}
+                      {i.stockQuantity <= i.minThreshold && (
+                        <span className="low-stock-badge">
+                          {i.stockQuantity <= 0 ? "HẾT HÀNG" : "TỒN THẤP"}
+                        </span>
+                      )}
                     </td>
                     <td>
                       {i.minThreshold} {i.unit}

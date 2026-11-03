@@ -284,3 +284,13 @@ button, select { font: inherit; color: inherit; }
 }
 .login__submit:hover:not(:disabled) { filter: brightness(1.08); }
 .login__submit:disabled { opacity: 0.6; cursor: default; }
+
+/* ---------- Đơn của ngày trước: nền vàng + dòng cảnh báo ---------- */
+.card--old { background: #fff6cc; border-color: #e0a800; }
+.card--old .card__head { background: #ffe58a; border-bottom-color: #e0a800; }
+.card__warn {
+  display: flex; align-items: center; gap: 0.5em;
+  padding: 0.55em 1.2em;
+  background: #f5b700; color: #3a2a00;
+  font-weight: 700; font-size: 1em;
+}

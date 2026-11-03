@@ -8,18 +8,46 @@ import {
 } from "../../services/adminApi";
 import type { Ingredient, Recipe } from "../../types";
 
-export default function RecipeEditor({ foodId }: { foodId: number }) {
+/** Dòng công thức tạm khi món chưa được lưu (chưa có foodId). */
+export interface RecipeDraft {
+  ingredientId: number;
+  quantityRequired: number;
+}
+
+interface Row {
+  key: string;
+  ingredientId: number;
+  name: string;
+  unit: string;
+  quantity: number;
+  recipe?: Recipe;
+}
+
+interface Props {
+  /** Có foodId: lưu thẳng vào món. Không có: chỉ chỉnh danh sách tạm `draft`. */
+  foodId?: number;
+  draft?: RecipeDraft[];
+  onDraftChange?: (draft: RecipeDraft[]) => void;
+  onChanged?: () => void;
+}
+
+export default function RecipeEditor({ foodId, draft = [], onDraftChange, onChanged }: Props) {
+  const persisted = foodId !== undefined;
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredientId, setIngredientId] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [editing, setEditing] = useState<Recipe | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+
   useEffect(() => {
     let active = true;
-    Promise.all([getIngredients(), getRecipesByFood(foodId)])
+    Promise.all([
+      getIngredients(),
+      foodId !== undefined ? getRecipesByFood(foodId) : Promise.resolve([] as Recipe[]),
+    ])
       .then(([i, r]) => {
         if (active) {
           setIngredients(i);
@@ -33,6 +61,33 @@ export default function RecipeEditor({ foodId }: { foodId: number }) {
       active = false;
     };
   }, [foodId, revision]);
+
+  const rows: Row[] = persisted
+    ? recipes.map((r) => ({
+        key: `r${r.id}`,
+        ingredientId: r.ingredient?.id ?? 0,
+        name: r.ingredient?.name ?? "",
+        unit: r.ingredient?.unit ?? "",
+        quantity: r.quantityRequired,
+        recipe: r,
+      }))
+    : draft.map((d, index) => {
+        const ing = ingredients.find((i) => i.id === d.ingredientId);
+        return {
+          key: `d${index}`,
+          ingredientId: d.ingredientId,
+          name: ing?.name ?? `Nguyên liệu #${d.ingredientId}`,
+          unit: ing?.unit ?? "",
+          quantity: d.quantityRequired,
+        };
+      });
+
+  function resetForm() {
+    setEditingKey(null);
+    setIngredientId("");
+    setQuantity("");
+  }
+
   async function save() {
     if (
       !ingredientId ||
@@ -42,39 +97,55 @@ export default function RecipeEditor({ foodId }: { foodId: number }) {
       setError("Chọn nguyên liệu và nhập định lượng lớn hơn 0.");
       return;
     }
-    setBusy(true);
     setError("");
+    const editing = rows.find((r) => r.key === editingKey);
+    if (!persisted) {
+      const line = { ingredientId: Number(ingredientId), quantityRequired: Number(quantity) };
+      const index = editing ? Number(editing.key.slice(1)) : -1;
+      onDraftChange?.(index >= 0 ? draft.map((d, i) => (i === index ? line : d)) : [...draft, line]);
+      resetForm();
+      return;
+    }
+    setBusy(true);
     try {
       const body = {
-        foodId,
+        foodId: foodId as number,
         ingredientId: Number(ingredientId),
         quantityRequired: Number(quantity),
       };
-      if (editing) await updateRecipe(editing.id, body);
+      if (editing?.recipe) await updateRecipe(editing.recipe.id, body);
       else await createRecipe(body);
-      setEditing(null);
-      setIngredientId("");
-      setQuantity("");
+      resetForm();
       setRevision((n) => n + 1);
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không lưu được công thức");
     } finally {
       setBusy(false);
     }
   }
-  async function remove(recipe: Recipe) {
-    if (!confirm(`Xóa ${recipe.ingredient?.name} khỏi công thức?`)) return;
+
+  async function remove(row: Row) {
+    if (!persisted) {
+      const index = Number(row.key.slice(1));
+      onDraftChange?.(draft.filter((_, i) => i !== index));
+      if (editingKey === row.key) resetForm();
+      return;
+    }
+    if (!row.recipe || !confirm(`Xóa ${row.name} khỏi công thức?`)) return;
     setBusy(true);
     setError("");
     try {
-      await deleteRecipe(recipe.id);
+      await deleteRecipe(row.recipe.id);
       setRevision((n) => n + 1);
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không xóa được công thức");
     } finally {
       setBusy(false);
     }
   }
+
   return (
     <section className="recipe-editor">
       <h3>Công thức món ăn</h3>
@@ -89,14 +160,13 @@ export default function RecipeEditor({ foodId }: { foodId: number }) {
           <select
             className="field wide"
             value={ingredientId}
-            disabled={!!editing || busy}
+            disabled={!!editingKey || busy}
             onChange={(e) => setIngredientId(e.target.value)}
           >
             <option value="">Chọn nguyên liệu</option>
             {ingredients
               .filter(
-                (i) =>
-                  editing || !recipes.some((r) => r.ingredient?.id === i.id),
+                (i) => editingKey || !rows.some((r) => r.ingredientId === i.id),
               )
               .map((i) => (
                 <option key={i.id} value={i.id}>
@@ -121,17 +191,10 @@ export default function RecipeEditor({ foodId }: { foodId: number }) {
         </label>
       </div>
       <button className="btn-primary" disabled={busy} onClick={save}>
-        {editing ? "Lưu định lượng" : "Thêm nguyên liệu"}
+        {editingKey ? "Lưu định lượng" : "Thêm nguyên liệu"}
       </button>
-      {editing && (
-        <button
-          className="btn-outline"
-          onClick={() => {
-            setEditing(null);
-            setIngredientId("");
-            setQuantity("");
-          }}
-        >
+      {editingKey && (
+        <button className="btn-outline" onClick={resetForm}>
           Hủy sửa
         </button>
       )}
@@ -144,20 +207,20 @@ export default function RecipeEditor({ foodId }: { foodId: number }) {
           </tr>
         </thead>
         <tbody>
-          {recipes.map((r) => (
-            <tr key={r.id}>
-              <td>{r.ingredient?.name}</td>
+          {rows.map((r) => (
+            <tr key={r.key}>
+              <td>{r.name}</td>
               <td>
-                {r.quantityRequired} {r.ingredient?.unit}
+                {r.quantity} {r.unit}
               </td>
               <td>
                 <button
                   className="link"
                   disabled={busy}
                   onClick={() => {
-                    setEditing(r);
-                    setIngredientId(String(r.ingredient?.id));
-                    setQuantity(String(r.quantityRequired));
+                    setEditingKey(r.key);
+                    setIngredientId(String(r.ingredientId));
+                    setQuantity(String(r.quantity));
                   }}
                 >
                   Sửa
@@ -174,7 +237,7 @@ export default function RecipeEditor({ foodId }: { foodId: number }) {
           ))}
         </tbody>
       </table>
-      {!recipes.length && (
+      {!rows.length && (
         <p>
           Chưa có công thức. Thêm nguyên liệu để hệ thống tính tồn kho cho món
           này.

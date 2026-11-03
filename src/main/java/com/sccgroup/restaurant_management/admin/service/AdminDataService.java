@@ -9,12 +9,17 @@ import com.sccgroup.restaurant_management.domain.entity.inventory.Ingredient;
 import com.sccgroup.restaurant_management.domain.entity.inventory.Recipe;
 import com.sccgroup.restaurant_management.domain.entity.menu.*;
 import com.sccgroup.restaurant_management.domain.repository.account.ActivityLogRepository;
-import com.sccgroup.restaurant_management.domain.repository.account.KitchenAccountRepository;
 import com.sccgroup.restaurant_management.domain.repository.account.StaffAccountRepository;
 import com.sccgroup.restaurant_management.domain.repository.inventory.IngredientRepository;
 import com.sccgroup.restaurant_management.domain.repository.inventory.RecipeRepository;
 import com.sccgroup.restaurant_management.domain.repository.inventory.StockTransactionRepository;
-import com.sccgroup.restaurant_management.domain.repository.menu.*;
+import com.sccgroup.restaurant_management.domain.repository.menu.CategoryRepository;
+import com.sccgroup.restaurant_management.domain.repository.menu.ComboItemRepository;
+import com.sccgroup.restaurant_management.domain.repository.menu.ComboRepository;
+import com.sccgroup.restaurant_management.domain.repository.menu.FoodRepository;
+import com.sccgroup.restaurant_management.domain.repository.menu.OptionGroupRepository;
+import com.sccgroup.restaurant_management.domain.repository.menu.OptionRepository;
+import com.sccgroup.restaurant_management.domain.repository.account.KitchenAccountRepository;
 import com.sccgroup.restaurant_management.kds.repository.KitchenStationRepository;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import jakarta.transaction.Transactional;
@@ -24,6 +29,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -44,6 +50,7 @@ public class AdminDataService {
     private final ActivityLogRepository activityLogs;
     private final PasswordEncoder passwordEncoder;
     private final AdminLogService logService;
+    private final AdminEventPublisher adminEvents;
 
     public AdminDataService(KitchenStationRepository stations, CategoryRepository categories, FoodRepository foods,
                             IngredientRepository ingredients, RecipeRepository recipes,
@@ -51,7 +58,8 @@ public class AdminDataService {
                             OptionRepository options, ComboRepository combos, ComboItemRepository comboItems,
                             RestaurantTableRepository tables, StaffAccountRepository staffAccounts,
                             KitchenAccountRepository kitchenAccounts, ActivityLogRepository activityLogs,
-                            PasswordEncoder passwordEncoder, AdminLogService logService) {
+                            PasswordEncoder passwordEncoder, AdminLogService logService,
+                            AdminEventPublisher adminEvents) {
         this.stations = stations;
         this.categories = categories;
         this.foods = foods;
@@ -68,6 +76,7 @@ public class AdminDataService {
         this.activityLogs = activityLogs;
         this.passwordEncoder = passwordEncoder;
         this.logService = logService;
+        this.adminEvents = adminEvents;
     }
 
     public List<KitchenStation> stations() {
@@ -88,10 +97,11 @@ public class AdminDataService {
 
     @Transactional
     public KitchenStation updateStation(Long id, AdminDtos.StationRequest request, Actor actor) {
+        var before = logService.snapshot("kitchen_station", id);
         KitchenStation station = station(id);
         requireText(request.name(), "Station name");
         station.setName(request.name().trim());
-        log(actor, "update", "kitchen_station", id, station.getName());
+        logUpdate(actor, "kitchen_station", id, before);
         return stations.save(station);
     }
 
@@ -123,11 +133,12 @@ public class AdminDataService {
 
     @Transactional
     public AdminDtos.CategoryResponse updateCategory(Long id, AdminDtos.CategoryRequest request, Actor actor) {
+        var before = logService.snapshot("category", id);
         Category category = category(id);
         requireText(request.name(), "Category name");
         category.setName(request.name().trim());
         category.setKitchenStation(station(request.stationId()));
-        log(actor, "update", "category", id, category.getName());
+        logUpdate(actor, "category", id, before);
         return AdminDtos.toCategory(categories.save(category));
     }
 
@@ -162,6 +173,7 @@ public class AdminDataService {
 
     @Transactional
     public AdminDtos.FoodResponse updateFood(Long id, AdminDtos.FoodRequest request, Actor actor) {
+        var before = logService.snapshot("food", id);
         validateFood(request);
         Food food = food(id);
         food.setCategory(category(request.categoryId()));
@@ -170,7 +182,7 @@ public class AdminDataService {
         food.setImage(request.image());
         food.setDescription(request.description());
         food.setEstimatedCookingTime(request.estimatedCookingTime());
-        log(actor, "update", "food", id, food.getName());
+        logUpdate(actor, "food", id, before);
         return AdminDtos.toFood(foods.save(food));
     }
 
@@ -198,13 +210,14 @@ public class AdminDataService {
 
     @Transactional
     public Ingredient updateIngredient(Long id, AdminDtos.IngredientRequest request, Actor actor) {
+        var before = logService.snapshot("ingredient", id);
         validateIngredient(request);
         Ingredient item = ingredient(id);
         item.setName(request.name().trim());
         item.setUnit(request.unit().trim());
         item.setStockQuantity(request.stockQuantity());
         item.setMinThreshold(request.minThreshold());
-        log(actor, "update", "ingredient", id, item.getName());
+        logUpdate(actor, "ingredient", id, before);
         return ingredients.save(item);
     }
 
@@ -225,7 +238,9 @@ public class AdminDataService {
         if (recipes.existsByFoodIdAndIngredientId(request.foodId(), request.ingredientId()))
             throw new BusinessException("Recipe already exists for this food and ingredient");
         Recipe saved = recipes.save(new Recipe(food(request.foodId()), ingredient(request.ingredientId()), request.quantityRequired()));
-        log(actor, "create", "recipe", saved.getId(), null);
+        String unit = saved.getIngredient().getUnit() == null ? "" : " " + saved.getIngredient().getUnit();
+        log(actor, "update", "food", saved.getFood().getId(),
+                "thêm nguyên liệu " + saved.getIngredient().getName() + " × " + request.quantityRequired().stripTrailingZeros().toPlainString() + unit);
         return AdminDtos.toRecipe(saved);
     }
 
@@ -233,15 +248,19 @@ public class AdminDataService {
     public AdminDtos.RecipeResponse updateRecipe(Long id, AdminDtos.RecipeRequest request, Actor actor) {
         positive(request.quantityRequired(), "Recipe quantity");
         Recipe recipe = recipes.findById(id).orElseThrow(() -> missing("Recipe", id));
+        String unit = recipe.getIngredient().getUnit() == null ? "" : " " + recipe.getIngredient().getUnit();
+        BigDecimal oldQuantity = recipe.getQuantityRequired();
         recipe.setQuantityRequired(request.quantityRequired());
-        log(actor, "update", "recipe", id, null);
+        log(actor, "update", "food", recipe.getFood().getId(),
+                "định lượng " + recipe.getIngredient().getName() + " " + oldQuantity.stripTrailingZeros().toPlainString() + unit
+                        + " -> " + request.quantityRequired().stripTrailingZeros().toPlainString() + unit);
         return AdminDtos.toRecipe(recipes.save(recipe));
     }
 
     @Transactional
     public void deleteRecipe(Long id, Actor actor) {
-        if (!recipes.existsById(id)) throw missing("Recipe", id);
-        log(actor, "delete", "recipe", id, null);
+        Recipe recipe = recipes.findById(id).orElseThrow(() -> missing("Recipe", id));
+        log(actor, "update", "food", recipe.getFood().getId(), "xóa nguyên liệu " + recipe.getIngredient().getName() + " khỏi công thức");
         recipes.deleteById(id);
     }
 
@@ -264,7 +283,8 @@ public class AdminDataService {
         ingredients.save(ingredient);
         String note = AdminLogService.actionName(request.type().name()) + " " + ingredient.getName() + ": " + request.quantity() + " " + ingredient.getUnit() + (request.note() == null || request.note().isBlank() ? "" : ". " + request.note());
         StockTransaction saved = stockTransactions.save(new StockTransaction(ingredient, request.type(), request.quantity(), note, LocalDateTime.now()));
-        log(actor, request.type().name().toLowerCase(), "ingredient", ingredient.getId(), note);
+        String logDetail = request.quantity() + " " + ingredient.getUnit() + (request.note() == null || request.note().isBlank() ? "" : ". " + request.note());
+        log(actor, request.type().name().toLowerCase(), "ingredient", ingredient.getId(), logDetail);
         return AdminDtos.toStockTransaction(saved);
     }
 
@@ -286,11 +306,12 @@ public class AdminDataService {
 
     @Transactional
     public OptionGroup updateOptionGroup(Long id, AdminDtos.OptionGroupRequest request, Actor actor) {
+        var before = logService.snapshot("option_group", id);
         OptionGroup item = optionGroup(id);
         requireText(request.name(), "Option group name");
         item.setName(request.name().trim());
         item.setSelectionType(request.selectionType());
-        log(actor, "update", "option_group", id, item.getName());
+        logUpdate(actor, "option_group", id, before);
         return optionGroups.save(item);
     }
 
@@ -322,6 +343,7 @@ public class AdminDataService {
 
     @Transactional
     public AdminDtos.OptionResponse updateOption(Long id, AdminDtos.OptionRequest request, Actor actor) {
+        var before = logService.snapshot("option", id);
         validateOption(request);
         Option item = option(id);
         item.setFood(food(request.foodId()));
@@ -333,7 +355,7 @@ public class AdminDataService {
         item.setAdjustType(request.adjustType());
         item.setPriceDelta(request.priceDelta());
         item.setScaleFactor(request.scaleFactor());
-        log(actor, "update", "option", id, request.name());
+        logUpdate(actor, "option", id, before);
         return AdminDtos.toOption(options.save(item));
     }
 
@@ -371,12 +393,13 @@ public class AdminDataService {
 
     @Transactional
     public Combo updateCombo(Long id, AdminDtos.ComboRequest request, Actor actor) {
+        var before = logService.snapshot("combo", id);
         validateDiscount(request);
         Combo item = combo(id);
         item.setName(request.name().trim());
         item.setDiscountType(request.discountType());
         item.setDiscountValue(request.discountValue());
-        log(actor, "update", "combo", id, item.getName());
+        logUpdate(actor, "combo", id, before);
         return combos.save(item);
     }
 
@@ -396,13 +419,13 @@ public class AdminDataService {
         if (request.quantity() == null || request.quantity() < 1)
             throw new BusinessException("Quantity must be positive");
         ComboItem item = comboItems.save(new ComboItem(combo(comboId), food(request.foodId()), request.quantity()));
-        log(actor, "create", "combo", comboId, "Thêm món " + item.getFood().getName() + " × " + request.quantity());
+        log(actor, "update", "combo", comboId, "thêm món " + item.getFood().getName() + " × " + request.quantity());
         return AdminDtos.toComboItem(item);
     }
 
     @Transactional
     public void deleteComboItem(Long comboId, Long foodId, Actor actor) {
-        log(actor, "update", "combo", comboId, "Xóa món " + food(foodId).getName() + " khỏi combo");
+        log(actor, "update", "combo", comboId, "xóa món " + food(foodId).getName() + " khỏi combo");
         comboItems.deleteById(new ComboItemId(comboId, foodId));
     }
 
@@ -425,13 +448,14 @@ public class AdminDataService {
 
     @Transactional
     public RestaurantTable updateTable(Long id, AdminDtos.TableRequest request, Actor actor) {
+        var before = logService.snapshot("table", id);
         RestaurantTable item = restaurantTable(id);
         requireText(request.floor(), "Floor");
         requireText(request.tableNumber(), "Table number");
         item.setFloor(request.floor().trim());
         item.setTableNumber(request.tableNumber().trim());
         item.setStatus(request.status());
-        log(actor, "update", "table", id, item.getTableNumber());
+        logUpdate(actor, "table", id, before);
         return tables.save(item);
     }
 
@@ -457,13 +481,14 @@ public class AdminDataService {
 
     @Transactional
     public StaffAccount updateStaffAccount(Long id, AdminDtos.StaffAccountRequest request, Actor actor) {
+        var before = logService.snapshot("staff_account", id);
         StaffAccount item = staffAccounts.findById(id).orElseThrow(() -> missing("Staff account", id));
         requireText(request.username(), "Username");
         item.setUsername(request.username().trim());
         item.setRole(request.role());
         if (request.password() != null && !request.password().isBlank())
             item.setPasswordHash(passwordEncoder.encode(request.password()));
-        log(actor, "update", "staff_account", id, item.getUsername());
+        logUpdate(actor, "staff_account", id, before);
         return staffAccounts.save(item);
     }
 
@@ -489,13 +514,14 @@ public class AdminDataService {
 
     @Transactional
     public KitchenAccount updateKitchenAccount(Long id, AdminDtos.KitchenAccountRequest request, Actor actor) {
+        var before = logService.snapshot("kitchen_account", id);
         KitchenAccount item = kitchenAccounts.findById(id).orElseThrow(() -> missing("Kitchen account", id));
         requireText(request.username(), "Username");
         item.setUsername(request.username().trim());
         item.setKitchenStation(station(request.stationId()));
         if (request.password() != null && !request.password().isBlank())
             item.setPasswordHash(passwordEncoder.encode(request.password()));
-        log(actor, "update", "kitchen_account", id, item.getUsername());
+        logUpdate(actor, "kitchen_account", id, before);
         return kitchenAccounts.save(item);
     }
 
@@ -557,14 +583,23 @@ public class AdminDataService {
 
     private void log(Actor actor, String action, String targetType, Long targetId, String detail) {
         if (actor != null) {
-            // Flush pending JPA changes before JDBC captures the current display name.
+            // Flush pending JPA changes before JDBC reads the current data.
             foods.flush();
             String target = logService.targetName(targetType, targetId);
-            String generated = AdminLogService.actionName(action) + " " + target + (detail == null || detail.isBlank() ? "." : ": " + detail);
-            ActivityLog entry = new ActivityLog(actor.accountId(), actor.accountType(), action, targetType, targetId, generated.substring(0, Math.min(500, generated.length())), LocalDateTime.now());
+            // detail chỉ lưu nội dung thô (không ghép "<Hành động> <Đối tượng>"); trống thì tự sinh từ dữ liệu liên quan
+            String stored = logService.resolveDetail(targetType, targetId, target, detail);
+            ActivityLog entry = new ActivityLog(actor.accountId(), actor.accountType(), action, targetType, targetId, stored.substring(0, Math.min(500, stored.length())), LocalDateTime.now());
             entry.setNames(logService.actorName(actor.accountId(), actor.accountType().name()), target);
             activityLogs.save(entry);
+            adminEvents.publishChanged();
         }
+    }
+
+    /** Ghi log sửa dạng "giá trị cũ -> giá trị mới"; `before` lấy bằng logService.snapshot(...) trước khi sửa. */
+    private void logUpdate(Actor actor, String targetType, Long targetId, Map<String, String> before) {
+        if (actor == null) return;
+        foods.flush();
+        log(actor, "update", targetType, targetId, logService.updateDetail(targetType, targetId, before));
     }
 
     public record Actor(Long accountId, AccountType accountType) {

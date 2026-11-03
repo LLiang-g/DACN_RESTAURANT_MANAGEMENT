@@ -48,17 +48,22 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     /**
      * Các món hiện lên màn hình bếp, kèm mọi thứ cần hiển thị (món -> danh mục -> khu bếp,
      * order -> hóa đơn -> bàn, combo) trong MỘT câu truy vấn để tránh N+1.
-     * Chỉ lấy order tạo trong khoảng [from, to) (một ngày); sắp theo thời điểm gửi đơn cũ nhất trước.
+     * Món CHƯA NẤU (waiting) hiện hết, kể cả đơn của các ngày trước để bếp xử lý/làm sạch dữ liệu.
+     * Món đã bắt đầu nấu / xong / đã phục vụ (started) hiện khi order tạo từ {@code from} (đầu ngày hôm nay)
+     * trở đi, hoặc khi order cũ đó CÒN món chưa xong (open: chưa nấu hoặc đang nấu); order cũ đã xong hết thì ẩn.
+     * Sắp theo thời điểm gửi đơn cũ nhất trước.
      */
     @Query("select oi from OrderItem oi " +
            "join fetch oi.food f join fetch f.category c join fetch c.kitchenStation " +
            "join fetch oi.order o join fetch o.invoice i join fetch i.table " +
            "left join fetch oi.orderCombo oc left join fetch oc.combo " +
-           "where oi.status in :statuses and o.createdAt >= :from and o.createdAt < :to " +
+           "where oi.status = :waiting or (oi.status in :started and (o.createdAt >= :from or exists " +
+           "(select x.id from OrderItem x where x.order = o and x.status in :open))) " +
            "order by o.createdAt, oi.id")
-    List<OrderItem> findForKds(@Param("statuses") Collection<OrderItemStatus> statuses,
-                               @Param("from") LocalDateTime from,
-                               @Param("to") LocalDateTime to);
+    List<OrderItem> findForKds(@Param("waiting") OrderItemStatus waiting,
+                               @Param("started") Collection<OrderItemStatus> started,
+                               @Param("open") Collection<OrderItemStatus> open,
+                               @Param("from") LocalDateTime from);
 
     /** Tên các option khách đã chọn cho nhiều món một lượt: mỗi dòng là [orderItemId, tên option]. */
     @Query("select oio.orderItem.id, oio.option.name from OrderItemOption oio " +

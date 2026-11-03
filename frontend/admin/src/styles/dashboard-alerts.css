@@ -1,0 +1,307 @@
+/* Cảnh báo tồn kho + nhật ký tổng hợp realtime (Dashboard, Kho nguyên liệu) */
+
+/* ── Cảnh báo nguyên liệu sắp hết (Dashboard) ───────────────────────── */
+.low-stock-alert {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border: 2px solid var(--danger);
+  border-radius: 10px;
+}
+.low-stock-alert.is-critical {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 0 0 0 rgba(214, 69, 61, 0.55);
+  animation: stock-fire-pulse 1.6s ease-out infinite;
+}
+.low-stock-alert.is-ok {
+  background: #ecfdf3;
+  border-color: #12b76a;
+  color: #067647;
+  padding: 8px 16px;
+}
+.low-stock-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 16px;
+}
+.low-stock-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.low-stock-hint {
+  margin-left: auto;
+  font-size: 13px;
+  opacity: 0.9;
+}
+.low-stock-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0 0 4px;
+  display: flex;
+  flex-wrap: nowrap;   /* chỉ một dòng duy nhất */
+  gap: 8px;
+  overflow-x: auto;    /* nhiều nguyên liệu thì cuộn ngang */
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #fff rgba(0, 0, 0, 0.25);
+}
+.low-stock-chip {
+  flex: none;
+  background: #fff;
+  color: var(--danger);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.low-stock-chip.is-empty {
+  background: #7a1410;
+  color: #fff;
+}
+.low-stock-chip small {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+@keyframes stock-fire-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(214, 69, 61, 0.55); }
+  70% { box-shadow: 0 0 0 12px rgba(214, 69, 61, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(214, 69, 61, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .low-stock-alert.is-critical { animation: none; }
+}
+
+/* ── Kho nguyên liệu: banner + dòng tồn thấp ───────────────────────── */
+.stock-fire {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.row-low-stock td {
+  background: var(--danger-soft);
+  font-weight: 600;
+}
+.row-low-stock td:first-child {
+  border-left: 5px solid var(--danger);
+}
+.low-stock-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+/* ── Nhật ký tổng hợp (log trực tiếp, realtime) ────────────────────── */
+.journal-feed {
+  margin-top: 16px;
+}
+.journal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+.journal-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.journal-count {
+  min-width: 24px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.journal-day {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: #667085;
+  text-transform: capitalize;
+}
+.journal-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+.journal-live {
+  font-size: 13px;
+  color: #067647;
+  white-space: nowrap;
+}
+.journal-live.is-offline {
+  color: var(--danger);
+}
+.journal-nav {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.journal-nav-btn {
+  width: 34px;
+  border: 0;
+  background: transparent;
+  color: #344054;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.journal-nav-btn:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+.journal-nav-btn:disabled {
+  color: #d0d5dd;
+  cursor: not-allowed;
+}
+.journal-date {
+  border: 0;
+  border-left: 1px solid #eaecf0;
+  border-right: 1px solid #eaecf0;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: #101828;
+  background: transparent;
+  color-scheme: light;
+}
+.journal-date:focus-visible,
+.journal-nav-btn:focus-visible {
+  outline: 2px solid #84caff;
+  outline-offset: -2px;
+}
+.journal-today {
+  border: 1px solid #1570ef;
+  border-radius: 10px;
+  background: #1570ef;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.journal-today:hover {
+  background: #175cd3;
+}
+.journal-log {
+  max-height: max(260px, calc(100vh - 500px));
+  overflow-y: auto;
+  padding: 8px 12px;
+  background: #fff;
+  color: #000;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.journal-line {
+  padding: 3px 0 3px 10px;
+  border-left: 3px solid #98a2b3;
+  word-break: break-word;
+}
+.journal-line:hover {
+  background: #f5f7fa;
+}
+.journal-line.tone-add { border-left-color: #12b76a; }
+.journal-line.tone-remove { border-left-color: #f04438; }
+.journal-line.tone-edit { border-left-color: #f79009; }
+.journal-time {
+  color: #667085;
+}
+.journal-actor {
+  color: #000;
+  font-weight: 700;
+}
+.journal-empty {
+  margin: 8px 0;
+  color: #667085;
+}
+
+.recipe-editor, .option-editor { border-top: 1px solid #e5e7eb; margin-top: 20px; padding-top: 16px; }
+
+/* ── Dashboard cố định vừa khít màn hình ── */
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px); /* 64px = padding trên + dưới của .main */
+  min-height: 520px;          /* màn hình quá thấp thì mới cho trang cuộn */
+}
+.dashboard-page > * {
+  flex-shrink: 0;
+}
+/* Khung cảnh báo gọn một hàng: tiêu đề bên trái, các chip nguyên liệu cuộn ngang ngay bên cạnh */
+.dashboard-page .low-stock-alert {
+  height: 52px;
+  margin: 0 0 12px;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+.dashboard-page .low-stock-alert.is-ok {
+  justify-content: flex-start;
+  font-size: 14px;
+}
+.dashboard-page .low-stock-head {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 8px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.dashboard-page .low-stock-icon {
+  font-size: 18px;
+}
+.dashboard-page .low-stock-hint {
+  display: none;
+}
+.dashboard-page .low-stock-list {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 2px;
+}
+.dashboard-page .low-stock-chip {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.dashboard-page .journal-feed {
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-page .journal-log {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+}

@@ -1,15 +1,13 @@
 package com.sccgroup.restaurant_management.domain.service;
 
+import com.sccgroup.restaurant_management.admin.service.AdminEventPublisher;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.domain.entity.account.AccountType;
 import com.sccgroup.restaurant_management.domain.entity.account.ActivityLog;
 import com.sccgroup.restaurant_management.domain.entity.inventory.Ingredient;
 import com.sccgroup.restaurant_management.domain.entity.inventory.Recipe;
-import com.sccgroup.restaurant_management.domain.entity.menu.AdjustType;
-import com.sccgroup.restaurant_management.domain.entity.menu.Option;
-import com.sccgroup.restaurant_management.domain.entity.menu.StockTransaction;
-import com.sccgroup.restaurant_management.domain.entity.menu.StockTransactionType;
+import com.sccgroup.restaurant_management.domain.entity.menu.*;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItem;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemOption;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
@@ -40,12 +38,14 @@ public class InventoryService {
     private final OrderItemOptionRepository orderItemOptions;
     private final StockTransactionRepository transactions;
     private final ActivityLogRepository activityLogs;
+    private final AdminEventPublisher adminEvents;
 
     public InventoryService(FoodRepository foods, RecipeRepository recipes, IngredientRepository ingredients,
                             OptionRepository options, OrderItemRepository orderItems, OrderItemOptionRepository orderItemOptions,
-                            StockTransactionRepository transactions, ActivityLogRepository activityLogs) {
+                            StockTransactionRepository transactions, ActivityLogRepository activityLogs,
+                            AdminEventPublisher adminEvents) {
         this.foods = foods; this.recipes = recipes; this.ingredients = ingredients; this.options = options;
-        this.orderItems = orderItems; this.orderItemOptions = orderItemOptions; this.transactions = transactions; this.activityLogs = activityLogs;
+        this.orderItems = orderItems; this.orderItemOptions = orderItemOptions; this.transactions = transactions; this.activityLogs = activityLogs; this.adminEvents = adminEvents;
     }
 
     @Transactional
@@ -70,6 +70,7 @@ public class InventoryService {
         item.setStartedCookingAt(LocalDateTime.now());
         OrderItem saved = orderItems.save(item);
         if (accountId != null && accountType != null) activityLogs.save(new ActivityLog(accountId, accountType, "start_cooking", "order_item", orderItemId, "Inventory deducted", LocalDateTime.now()));
+        adminEvents.publishChanged(); // tồn kho vừa bị trừ: báo cho Dashboard admin cập nhật cảnh báo realtime
         return saved;
     }
 

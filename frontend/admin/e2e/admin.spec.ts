@@ -42,20 +42,15 @@ test("Admin workflows persist recipes, image and combo; journal and printable QR
   await expect(
     page.getByRole("heading", { name: "Doanh thu", exact: true }),
   ).toHaveCount(0);
-  const ingredients = await apiGet("/admin/ingredients");
-  await expect(page.locator(".stock-summary-row")).toHaveCount(
-    ingredients.length,
-  );
-  await page.getByRole("button", { name: "Mở nhật ký tổng hợp" }).click();
-  let dialog = page.getByRole("dialog");
+  // Nhật ký tổng hợp hiện trực tiếp trên Dashboard (không còn nút mở / làm mới / tất cả ngày)
   await expect(
-    dialog.getByText("Giao dịch kho", { exact: true }).first(),
+    page.getByRole("heading", { name: /Nhật ký tổng hợp/ }),
   ).toBeVisible();
-  await dialog.getByLabel("Ngày hoạt động").fill("2000-01-01");
-  await expect(
-    dialog.getByText("Không có hoạt động trong ngày đã chọn."),
-  ).toBeVisible();
-  await dialog.getByRole("button", { name: "Đóng", exact: true }).click();
+  await expect(page.locator(".journal-feed")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mở nhật ký tổng hợp" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Làm mới" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tất cả ngày" })).toHaveCount(0);
+  let dialog: ReturnType<typeof page.getByRole>;
 
   await page.goto("/#/menu");
   const foodRow = page.getByRole("row").filter({ hasText: foodName });
