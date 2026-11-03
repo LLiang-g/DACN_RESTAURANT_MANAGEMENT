@@ -26,4 +26,6 @@ public class OptionGroup {
     public Long getId() { return id; }
     public String getName() { return name; }
     public SelectionType getSelectionType() { return selectionType; }
+    public void setName(String name) { this.name = name; }
+    public void setSelectionType(SelectionType selectionType) { this.selectionType = selectionType; }
 }

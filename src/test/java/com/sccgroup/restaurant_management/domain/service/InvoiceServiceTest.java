@@ -4,7 +4,7 @@ import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
 import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
 import com.sccgroup.restaurant_management.domain.entity.floor.TableStatus;
-import com.sccgroup.restaurant_management.domain.repository.RestaurantTableRepository;
+import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -28,7 +28,7 @@ class InvoiceServiceTest {
     void shouldReuseOpenInvoiceForSameTable() {
         // Chuẩn bị 1 bàn thật trong DB để test
         RestaurantTable table = tableRepository.save(
-                new RestaurantTable("1", "A01", TableStatus.TRONG));
+                new RestaurantTable("1", "A01", TableStatus.AVAILABLE));
 
         // Gọi hàm 2 lần với cùng 1 bàn — mô phỏng 2 Order gửi liên tiếp
         Invoice first = invoiceService.getOrCreateOpenInvoice(table);

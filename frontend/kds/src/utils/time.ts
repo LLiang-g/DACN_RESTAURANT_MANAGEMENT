@@ -57,3 +57,25 @@ export function formatOrderedAgo(iso: string, now: number): string {
   const m = minutesAgo(iso, now);
   return m < 60 ? `${m} phút trước` : `lúc ${formatDateTimeSmart(iso, now)}`;
 }
+
+export interface StaleOrderInfo {
+  yesterday: boolean;
+  date: string;
+  /** số ngày lịch tính từ ngày đặt đến hôm nay (hôm qua = 1) */
+  daysAgo: number;
+}
+
+/** Order tạo trước ngày hôm nay thì trả thông tin để cảnh báo; order của hôm nay thì trả null. */
+export function staleOrderInfo(iso: string, now: number): StaleOrderInfo | null {
+  const d = new Date(iso);
+  const n = new Date(now);
+  if (d.toDateString() === n.toDateString() || d.getTime() > now) return null;
+  const yesterday = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1);
+  const dm = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return {
+    yesterday: d.toDateString() === yesterday.toDateString(),
+    date: d.getFullYear() === n.getFullYear() ? dm : `${dm}/${d.getFullYear()}`,
+    daysAgo: Math.round((startOfDay(n) - startOfDay(d)) / 86400000),
+  };
+}

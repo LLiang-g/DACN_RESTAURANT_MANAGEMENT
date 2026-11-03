@@ -1,3 +1,5 @@
+Hướng dẫn chạy, đường dẫn và chức năng Admin/Quản lý: [README.ADMIN.MD](README.ADMIN.MD).
+
 
 backend : springboot
 fontend : react js

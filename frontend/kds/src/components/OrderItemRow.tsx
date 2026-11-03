@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { KdsOrderItem } from '../types';
-import { getSla } from '../utils/time';
+import { formatDateTimeSmart, getSla } from '../utils/time';
 import SlaTimer from './SlaTimer';
 
 interface Props {
@@ -19,6 +19,7 @@ const STATE_TEXT: Record<string, string> = {
   CONFIRMED: 'Chờ nấu',
   COOKING: 'Đang nấu',
   DONE: 'Đã xong',
+  SERVED: 'Đã phục vụ',
 };
 
 /** Thẻ món của khu bếp mình. */
@@ -37,31 +38,19 @@ export default function OrderItemRow({ item, now, interactive, onStart, onFinish
 
   return (
     <li className={`tile tile--${item.status.toLowerCase()} tile--sla-${level}`}>
-      <div className="tile__top">
-        <div className="tile__title">
-          <span className="tile__qty">
-            <small>×</small>
-            {item.quantity}
-          </span>
-          <span className="tile__name">{item.foodName}</span>
-        </div>
-        <span className="tile__state">{stateText}</span>
+      <span className="tile__dot" title={stateText} aria-label={stateText} />
+
+      <div className="tile__title" title={item.foodName}>
+        <span className="tile__qty">
+          <small>×</small>
+          {item.quantity}
+        </span>
+        <span className="tile__name">{item.foodName}</span>
       </div>
 
-      {(item.options.length > 0 || item.comboName) && (
-        <div className="tile__chips">
-          {item.comboName && <span className="chip chip--combo">{item.comboName}</span>}
-          {item.options.map((o) => (
-            <span key={o} className="chip">
-              {o}
-            </span>
-          ))}
-        </div>
-      )}
-      {item.note && <div className="tile__note">Ghi chú: {item.note}</div>}
+      {item.status !== 'DONE' && item.status !== 'SERVED' && <SlaTimer item={item} now={now} />}
 
-      <div className="tile__foot">
-        <SlaTimer item={item} now={now} />
+      <div className="tile__action">
         {item.status === 'CONFIRMED' && (
           <button className="btn btn--start" disabled={!interactive} onClick={handleStart}>
             Nấu
@@ -75,6 +64,22 @@ export default function OrderItemRow({ item, now, interactive, onStart, onFinish
           >
             {lockLeft > 0 ? `Xong (${lockLeft}s)` : 'Xong'}
           </button>
+        )}
+      </div>
+
+      {/* Hàng dưới cùng luôn cao bằng nhau: option/combo/ghi chú bên trái, giờ xong (nhỏ) bên phải */}
+      <div className="tile__sub">
+        <div className="tile__chips">
+          {item.comboName && <span className="chip chip--combo">{item.comboName}</span>}
+          {item.options.map((o) => (
+            <span key={o} className="chip">
+              {o}
+            </span>
+          ))}
+          {item.note && <span className="tile__note">Ghi chú: {item.note}</span>}
+        </div>
+        {(item.status === 'DONE' || item.status === 'SERVED') && item.doneAt && (
+          <span className="tile__done">xong lúc {formatDateTimeSmart(item.doneAt, now)}</span>
         )}
       </div>
 

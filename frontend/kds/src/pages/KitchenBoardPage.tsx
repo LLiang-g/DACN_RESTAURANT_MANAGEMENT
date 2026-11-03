@@ -4,7 +4,7 @@ import { useNow } from '../hooks/useNow';
 import { useOrders } from '../hooks/useOrders';
 import type { KdsOrder, Session } from '../types';
 
-const VISIBLE = new Set(['CONFIRMED', 'COOKING', 'DONE']);
+const VISIBLE = new Set(['CONFIRMED', 'COOKING', 'DONE', 'SERVED']);
 
 /** Chờ một chút sau khi bấm Xong cuối cùng để bếp kịp thấy kết quả rồi mới chuyển thẻ (ms). */
 const AUTO_ADVANCE_DELAY = 700;
@@ -21,7 +21,8 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
   const stationId = session.stationId;
   const station = { id: session.stationId, name: session.stationName };
 
-  const [activeIndex, setActiveIndex] = useState(0);
+  // Dải thẻ hiện nhiều order cùng lúc: first..last là các order đang nằm trong khung nhìn
+  const [range, setRange] = useState({ first: 0, last: 0 });
   const railRef = useRef<HTMLDivElement>(null);
 
   // Chỉ hiện order còn món đang chờ / đang nấu / vừa xong, cũ nhất đứng trước.
@@ -42,22 +43,22 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
     };
   }, [board, stationId]);
 
-  const goTo = useCallback((index: number) => {
+  const goTo = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
     const rail = railRef.current;
     if (!rail) return;
     const card = rail.children[index] as HTMLElement | undefined;
-    card?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    card?.scrollIntoView({ behavior, inline: 'start', block: 'nearest' });
   }, []);
 
-  const activeIndexRef = useRef(0);
-  activeIndexRef.current = activeIndex;
+  const rangeRef = useRef(range);
+  rangeRef.current = range;
   const pendingRef = useRef<{ stationId: number; byOrder: Map<number, number> }>({
     stationId,
     byOrder: new Map(),
   });
   const advanceTimer = useRef<number | undefined>(undefined);
 
-  // Khi các món của khu mình trong thẻ đang xem đều đã xong -> tự chuyển sang đơn kế tiếp.
+  // Khi các món của khu mình trong một order đang xem đều đã xong -> đẩy đơn đầu tiên còn việc về đầu dải.
   useEffect(() => {
     const prev = pendingRef.current;
     const sameStation = prev.stationId === stationId;
@@ -73,14 +74,15 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
 
       const before = prev.byOrder.get(o.id);
       const justFinished = sameStation && before !== undefined && before > 0 && pending === 0;
-      if (justFinished && idx === activeIndexRef.current) {
-        // Nhảy tới đơn kế tiếp CÒN việc của khu mình, bỏ qua những đơn không có món nào của khu mình.
-        const target = board.findIndex((order, j) => j > idx && hasWork(order));
-        if (target !== -1) {
+      const inView = idx >= rangeRef.current.first && idx <= rangeRef.current.last;
+      if (justFinished && inView) {
+        // Đơn đầu tiên còn việc của khu mình (đơn không có món nào của khu mình tự bị bỏ qua).
+        const target = board.findIndex(hasWork);
+        if (target > rangeRef.current.first) {
           window.clearTimeout(advanceTimer.current);
           advanceTimer.current = window.setTimeout(() => {
-            // Chỉ chuyển nếu bếp vẫn đang xem đúng thẻ đó (chưa tự cuộn sang chỗ khác).
-            if (activeIndexRef.current === idx) goTo(target);
+            // Chỉ cuộn nếu đơn đó vẫn chưa ở đầu dải (bếp chưa tự cuộn chỗ khác).
+            if (target > rangeRef.current.first) goTo(target);
           }, AUTO_ADVANCE_DELAY);
         }
       }
@@ -91,38 +93,55 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
 
   useEffect(() => () => window.clearTimeout(advanceTimer.current), []);
 
-  // Xác định thẻ đang ở giữa màn hình theo vị trí cuộn.
+  // Mở trang lần đầu: lướt ngay tới đơn chưa hoàn thành cũ nhất (ưu tiên đơn còn việc của khu mình)
+  const didInitialScroll = useRef(false);
+  useEffect(() => {
+    if (didInitialScroll.current || loading || board.length === 0 || !railRef.current) return;
+    didInitialScroll.current = true;
+    const pending = (o: KdsOrder, ownOnly: boolean) =>
+      o.items.some(
+        (i) => (!ownOnly || i.stationId === stationId) && (i.status === 'CONFIRMED' || i.status === 'COOKING'),
+      );
+    let target = board.findIndex((o) => pending(o, true));
+    if (target === -1) target = board.findIndex((o) => pending(o, false));
+    if (target > 0) goTo(target, 'auto');
+  }, [board, loading, stationId, goTo]);
+
+  // Xác định các order đang nằm (phần lớn) trong khung nhìn theo vị trí cuộn.
   const onScroll = useCallback(() => {
     const rail = railRef.current;
     if (!rail || rail.children.length === 0) return;
-    const center = rail.scrollLeft + rail.clientWidth / 2;
-    let best = 0;
-    let bestDist = Infinity;
+    const view = rail.getBoundingClientRect();
+    let first = -1;
+    let last = -1;
     Array.from(rail.children).forEach((el, idx) => {
-      const c = el as HTMLElement;
-      const dist = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = idx;
+      const r = (el as HTMLElement).getBoundingClientRect();
+      const overlap = Math.min(r.right, view.right) - Math.max(r.left, view.left);
+      if (overlap >= r.width * 0.6) {
+        if (first === -1) first = idx;
+        last = idx;
       }
     });
-    setActiveIndex(best);
+    if (first === -1) return;
+    setRange((prev) => (prev.first === first && prev.last === last ? prev : { first, last }));
   }, []);
 
-  // Giữ activeIndex hợp lệ khi số order thay đổi.
+  // Tính lại khi số order đổi hoặc cửa sổ đổi kích thước
   useEffect(() => {
-    if (activeIndex > board.length - 1) setActiveIndex(Math.max(0, board.length - 1));
-  }, [board.length, activeIndex]);
+    onScroll();
+    window.addEventListener('resize', onScroll);
+    return () => window.removeEventListener('resize', onScroll);
+  }, [onScroll, board.length]);
 
-  // Phím mũi tên trái/phải để chuyển thẻ.
+  // Phím mũi tên trái/phải: cuộn từng order
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') goTo(Math.min(board.length - 1, activeIndex + 1));
-      if (e.key === 'ArrowLeft') goTo(Math.max(0, activeIndex - 1));
+      if (e.key === 'ArrowRight') goTo(Math.min(board.length - 1, range.first + 1));
+      if (e.key === 'ArrowLeft') goTo(Math.max(0, range.first - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeIndex, board.length, goTo]);
+  }, [range.first, board.length, goTo]);
 
   return (
     <div className="app">
@@ -148,16 +167,21 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
         </div>
 
         <div className="topbar__right">
-          <button className="nav-btn" onClick={() => goTo(activeIndex - 1)} disabled={activeIndex <= 0} aria-label="Order trước">
+          <button className="nav-btn" onClick={() => goTo(range.first - 1)} disabled={range.first <= 0} aria-label="Order trước">
             ‹
           </button>
           <span className="pager">
-            {board.length === 0 ? 0 : activeIndex + 1} / {board.length}
+            {board.length === 0
+              ? 0
+              : range.first === range.last
+                ? range.first + 1
+                : `${range.first + 1}–${range.last + 1}`}{' '}
+            / {board.length}
           </span>
           <button
             className="nav-btn"
-            onClick={() => goTo(activeIndex + 1)}
-            disabled={activeIndex >= board.length - 1}
+            onClick={() => goTo(range.first + 1)}
+            disabled={range.last >= board.length - 1}
             aria-label="Order sau"
           >
             ›
@@ -184,15 +208,13 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
           <p className="board__empty">Chưa có order nào cần làm. Order mới sẽ hiện ở đây ngay khi lễ tân duyệt.</p>
         ) : (
           <div className="rail" ref={railRef} onScroll={onScroll}>
-            {board.map((order, idx) => (
+            {board.map((order) => (
               <OrderCard
                 key={order.id}
                 order={order}
                 stationId={stationId}
                 stationName={station.name}
                 now={now}
-                active={idx === activeIndex}
-                onFocus={() => goTo(idx)}
                 onStart={start}
                 onFinish={finish}
               />

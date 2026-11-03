@@ -13,6 +13,7 @@ import java.util.List;
 public interface OrderItemOptionRepository extends JpaRepository<OrderItemOption, Long> {
 
     @EntityGraph(attributePaths = {"option", "option.ingredient"})
+
     List<OrderItemOption> findByOrderItemIdIn(Collection<Long> orderItemIds);
 
 
@@ -22,4 +23,6 @@ public interface OrderItemOptionRepository extends JpaRepository<OrderItemOption
     where oio.orderItem.id in :orderItemIds
     """)
     List<OrderItemOption> findByOrderItemIdInWithOption(@Param("orderItemIds") List<Long> orderItemIds);
+
+    List<OrderItemOption> findByOrderItemId(Long orderItemId);
 }

@@ -1,6 +1,7 @@
 package com.sccgroup.restaurant_management.domain.entity.account;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "kitchen_account")
@@ -29,6 +30,10 @@ public class KitchenAccount {
 
     public Long getId() { return id; }
     public String getUsername() { return username; }
+    @JsonIgnore
     public String getPasswordHash() { return passwordHash; }
     public KitchenStation getKitchenStation() { return kitchenStation; }
+    public void setUsername(String username) { this.username = username; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public void setKitchenStation(KitchenStation kitchenStation) { this.kitchenStation = kitchenStation; }
 }
