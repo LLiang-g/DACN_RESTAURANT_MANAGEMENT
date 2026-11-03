@@ -12,13 +12,13 @@ const stripOrigin: ProxyOptions['configure'] = (proxy) => {
   proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'));
   proxy.on('proxyReqWs', (proxyReq) => proxyReq.removeHeader('origin'));
 };
-
+  
 export default defineConfig({
   plugins: [react()],
   // sockjs-client cần biến global của Node; trong trình duyệt thay bằng globalThis
   define: { global: 'globalThis' },
   server: {
-    port: 5175,
+    port: 5174,
     // Gọi /api và /ws trên cổng 5175 (chính dev server này) sẽ được chuyển tiếp sang backend 8080
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true, configure: stripOrigin },
