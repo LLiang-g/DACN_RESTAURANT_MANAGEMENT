@@ -1,1 +1,0 @@
-là các phương thức để thực thi nghiệp vụ 
