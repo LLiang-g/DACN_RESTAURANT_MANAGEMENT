@@ -209,6 +209,27 @@
 .journal-today:hover {
   background: #175cd3;
 }
+.journal-log-wrap {
+  position: relative;
+}
+.journal-new {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #ea580c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.journal-new:hover {
+  background: #c2410c;
+}
 .journal-log {
   max-height: max(260px, calc(100vh - 500px));
   overflow-y: auto;
@@ -297,6 +318,12 @@
   flex: 1 1 0;
   min-height: 0;
   margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-page .journal-log-wrap {
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

@@ -10,7 +10,8 @@ import type { ActivityLog } from "../../types";
  * Mặc định là hôm nay (qua nửa đêm tự sang ngày mới), có thể chọn ngày khác để xem lại.
  * Dòng log: "[07:31 30/10/2026]tài khoản đã <hành động> <Đối tượng>: <Chi tiết>".
  * Log cũ ở trên, log mới ở dưới cùng (như khung chat). Đang xem ở cuối log thì tự đẩy log mới lên;
- * đang cuộn lên xem chỗ khác thì log mới được thêm âm thầm, không làm nhảy vị trí đang đọc.
+ * đang cuộn lên xem chỗ khác thì log mới được thêm âm thầm, không làm nhảy vị trí đang đọc,
+ * và hiện nút "↓ N log mới" để bấm nhảy về cuối.
  */
 export default function JournalFeed() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -23,6 +24,8 @@ export default function JournalFeed() {
   const logRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true); // đang ở cuối log?
   const shownDay = useRef("");
+  const [atBottom, setAtBottom] = useState(true); // đang nhìn ở cuối log?
+  const [seenCount, setSeenCount] = useState(0); // số dòng đã thấy lần cuối khi ở cuối log
 
   const day = picked ?? today;
   const isToday = day === today;
@@ -70,11 +73,22 @@ export default function JournalFeed() {
 
   const onLogScroll = () => {
     const el = logRef.current;
-    if (el) stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 24;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight <= 24;
+    stickToBottom.current = near;
+    setAtBottom(near);
+    if (near) setSeenCount(lines.length);
+  };
+
+  const unread = atBottom ? 0 : Math.max(0, lines.length - seenCount);
+
+  const jumpToLatest = () => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
   };
 
   const choose = (next: string) => {
     if (!next) return;
+    setAtBottom(true);
     setPicked(next >= today ? null : next); // không cho xem tương lai; chọn lại hôm nay thì quay về chế độ theo dõi
   };
 
@@ -124,7 +138,14 @@ export default function JournalFeed() {
             </button>
           </div>
           {!isToday && (
-            <button type="button" className="journal-today" onClick={() => setPicked(null)}>
+            <button
+              type="button"
+              className="journal-today"
+              onClick={() => {
+                setAtBottom(true);
+                setPicked(null);
+              }}
+            >
               Về hôm nay
             </button>
           )}
@@ -135,22 +156,29 @@ export default function JournalFeed() {
           {error}
         </p>
       )}
-      <div className="journal-log" role="log" aria-live="polite" ref={logRef} onScroll={onLogScroll}>
-        {loading ? (
-          <p className="journal-empty" role="status">
-            Đang tải nhật ký...
-          </p>
-        ) : lines.length === 0 ? (
-          <p className="journal-empty">
-            {isToday ? "Chưa có hoạt động nào trong hôm nay." : "Không có hoạt động nào trong ngày này."}
-          </p>
-        ) : (
-          lines.map((l) => (
-            <div className={`journal-line tone-${l.tone}`} key={l.key}>
-              <span className="journal-time">{l.time}</span>
-              <span className="journal-actor">{l.actor}</span> đã {l.text}
-            </div>
-          ))
+      <div className="journal-log-wrap">
+        <div className="journal-log" role="log" aria-live="polite" ref={logRef} onScroll={onLogScroll}>
+          {loading ? (
+            <p className="journal-empty" role="status">
+              Đang tải nhật ký...
+            </p>
+          ) : lines.length === 0 ? (
+            <p className="journal-empty">
+              {isToday ? "Chưa có hoạt động nào trong hôm nay." : "Không có hoạt động nào trong ngày này."}
+            </p>
+          ) : (
+            lines.map((l) => (
+              <div className={`journal-line tone-${l.tone}`} key={l.key}>
+                <span className="journal-time">{l.time}</span>
+                <span className="journal-actor">{l.actor}</span> đã {l.text}
+              </div>
+            ))
+          )}
+        </div>
+        {unread > 0 && (
+          <button type="button" className="journal-new" onClick={jumpToLatest}>
+            ↓ {unread} log mới
+          </button>
         )}
       </div>
     </section>
