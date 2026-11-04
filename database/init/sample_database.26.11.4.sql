@@ -160,6 +160,20 @@ CREATE TABLE `invoice` (
   FOREIGN KEY (`table_id`) REFERENCES `restaurant_table`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE payment_transaction (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id BIGINT NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  txn_ref VARCHAR(64) NOT NULL UNIQUE,
+  amount DECIMAL(12,2) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  provider_txn_no VARCHAR(64) NULL,
+  created_at DATETIME NOT NULL,
+  paid_at DATETIME NULL,
+  CONSTRAINT fk_payment_invoice FOREIGN KEY (invoice_id) REFERENCES invoice(id),
+  INDEX idx_payment_invoice_status (invoice_id, status)
+);
+
 CREATE TABLE `customer_order` (
   `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `invoice_id` BIGINT NOT NULL,
