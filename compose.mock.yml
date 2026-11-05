@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      PAYMENT_MOCK_ENABLED: ${PAYMENT_MOCK_ENABLED:-false}
+      MOCK_WEBHOOK_SECRET: ${MOCK_WEBHOOK_SECRET:?Set MOCK_WEBHOOK_SECRET for mock testing}
