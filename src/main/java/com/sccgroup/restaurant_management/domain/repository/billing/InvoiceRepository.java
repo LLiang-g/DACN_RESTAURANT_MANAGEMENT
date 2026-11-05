@@ -49,4 +49,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("select i from Invoice i where i.id = :id")
     Optional<Invoice> findByIdForUpdate(@Param("id") Long id);
 
+    /** Fresh scalar status read after acquiring the invoice lock. */
+    @Query("select i.status from Invoice i where i.id = :id")
+    Optional<InvoiceStatus> findStatusById(@Param("id") Long id);
+
 }

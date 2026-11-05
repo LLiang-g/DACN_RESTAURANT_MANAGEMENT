@@ -2,6 +2,7 @@ package com.sccgroup.restaurant_management.customer.service;
 
 import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
+import com.sccgroup.restaurant_management.common.exception.ConflictException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.customer.dto.OrderResponse;
 import com.sccgroup.restaurant_management.customer.dto.PlaceOrderRequest;
@@ -10,6 +11,7 @@ import com.sccgroup.restaurant_management.customer.dto.PlaceOrderRequest.OrderCo
 import com.sccgroup.restaurant_management.customer.dto.PlaceOrderRequest.OrderLine;
 import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
 import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
+import com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransactionStatus;
 import com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable;
 import com.sccgroup.restaurant_management.domain.entity.floor.TableStatus;
 import com.sccgroup.restaurant_management.domain.entity.inventory.Recipe;
@@ -24,6 +26,7 @@ import com.sccgroup.restaurant_management.domain.entity.order.OrderCombo;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItem;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemOption;
 import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
+import com.sccgroup.restaurant_management.domain.repository.billing.PaymentTransactionRepository;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import com.sccgroup.restaurant_management.domain.repository.inventory.IngredientRepository;
 import com.sccgroup.restaurant_management.domain.repository.inventory.RecipeRepository;
@@ -74,6 +77,7 @@ public class CustomerOrderService {
 
     private final RestaurantTableRepository tableRepository;
     private final InvoiceRepository invoiceRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
     private final InvoiceService invoiceService;
 
     private final FoodRepository foodRepository;
@@ -95,6 +99,7 @@ public class CustomerOrderService {
 
     public CustomerOrderService(RestaurantTableRepository tableRepository,
                                 InvoiceRepository invoiceRepository,
+                                PaymentTransactionRepository paymentTransactionRepository,
                                 InvoiceService invoiceService,
 
                                 FoodRepository foodRepository,
@@ -114,6 +119,7 @@ public class CustomerOrderService {
         this.tableEventPublisher = tableEventPublisher;
         this.tableRepository = tableRepository;
         this.invoiceRepository = invoiceRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
         this.invoiceService = invoiceService;
         this.foodRepository = foodRepository;
         this.optionRepository = optionRepository;
@@ -162,6 +168,24 @@ public class CustomerOrderService {
         // Khóa dòng bàn để các đơn đồng thời của cùng một bàn được xử lý tuần tự
         RestaurantTable table = tableRepository.findByIdForUpdate(request.tableId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID " + request.tableId()));
+
+        // Serialize order creation with payment creation/IPN on the same invoice.
+        // Lock order: table -> invoice -> required ingredients (ascending ID, preserved from proposal 09).
+        Invoice invoice = invoiceService.getOrCreateOpenInvoice(table);
+        invoiceRepository.findByIdForUpdate(invoice.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        // Avoid relying on an Invoice entity loaded before waiting for its lock.
+        InvoiceStatus currentStatus = invoiceRepository.findStatusById(invoice.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        if (currentStatus != InvoiceStatus.OPEN) {
+            throw new ConflictException("INVOICE_NOT_OPEN",
+                    "Hóa đơn đã đóng trong lúc gửi đơn. Vui lòng tải lại thông tin bàn.");
+        }
+        if (!paymentTransactionRepository.findByInvoiceIdAndStatus(
+                invoice.getId(), PaymentTransactionStatus.PENDING).isEmpty()) {
+            throw new ConflictException("INVOICE_PAYMENT_PENDING",
+                    "Bàn đang chờ thanh toán. Vui lòng hoàn tất hoặc đối soát giao dịch trước khi gọi thêm món.");
+        }
 
 
         // ---- 1. Nạp dữ liệu theo lô ----
@@ -294,8 +318,6 @@ public class CustomerOrderService {
 
         // ---- 4. Ghi DB ----
         LocalDateTime now = LocalDateTime.now();
-
-        Invoice invoice = invoiceService.getOrCreateOpenInvoice(table);
 
         Order order = orderRepository.save(new Order(invoice, now));
 
