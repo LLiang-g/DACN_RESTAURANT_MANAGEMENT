@@ -456,7 +456,7 @@ export default function MenuPage() {
   ];
   const comboColumns: Column<Combo>[] = [
     { key: "name", header: "Tên combo", className: "strong" },
-    { key: "discount", header: "Giá bán / Giảm giá", render: c => c.discountType === "PERCENT" ? `${c.discountValue}%` : formatVND(c.discountValue) },
+    { key: "discount", header: "Mức giảm giá", render: c => c.discountType === "PERCENT" ? `Giảm ${c.discountValue}%` : `Giảm ${formatVND(c.discountValue)}` },
     { key: "count", header: "Số món", render: c => <button className="combo-count" onClick={() => handleOpenComboItems(c)} title="Xem và quản lý món trong combo">Quản lý món ({comboCounts[c.id] ?? "—"})</button> },
   ];
 
@@ -811,17 +811,19 @@ export default function MenuPage() {
               }
             >
               <option value="PERCENT">Giảm theo % (PERCENT)</option>
-              <option value="FIXED">Giá bán combo cố định (VNĐ)</option>
+              <option value="FIXED">Giảm số tiền cố định (VNĐ)</option>
             </select>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Giá trị giảm giá *</label>
+            <label className="form-label">{comboForm.discountType === "PERCENT" ? "Tỷ lệ giảm (%) *" : "Số tiền giảm (VNĐ) *"}</label>
             <input
               type="number"
               className="field wide"
-              placeholder={comboForm.discountType === "PERCENT" ? "15 (%)" : "50000 (VND)"}
-              value={comboForm.discountValue || ""}
+              min="0"
+              max={comboForm.discountType === "PERCENT" ? 100 : undefined}
+              placeholder={comboForm.discountType === "PERCENT" ? "Ví dụ: 15" : "Ví dụ: 50000"}
+              value={comboForm.discountValue}
               onChange={(e) =>
                 setComboForm({
                   ...comboForm,
@@ -831,6 +833,11 @@ export default function MenuPage() {
             />
           </div>
         </div>
+        <p>
+          {comboForm.discountType === "FIXED"
+            ? "Giá combo = tổng giá các món thành phần trừ số tiền giảm, tối thiểu 0 đồng. Ví dụ: tổng 90.000đ, giảm 15.000đ thì giá combo là 75.000đ."
+            : "Giá combo = tổng giá các món thành phần × (1 − tỷ lệ giảm / 100), làm tròn đến đồng."}
+        </p>
       </Modal>
 
       {/* MODAL MÓN TRONG COMBO */}
