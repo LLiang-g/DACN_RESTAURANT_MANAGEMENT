@@ -241,10 +241,10 @@ public class KdsService {
 
     private void publishTableStatus(OrderItem item) {
         Long tableId = item.getOrder().getInvoice().getTable().getId();
-        realtimeEvents.publishAfterCommit(
-                "/topic/table/" + tableId,
-                new OrderItemStatusEvent(item.getId(), tableId, item.getStatus().name(), null)
-        );
+        OrderItemStatusEvent event =
+                new OrderItemStatusEvent(item.getId(), tableId, item.getStatus().name(), null);
+        realtimeEvents.publishAfterCommit("/topic/table/" + tableId, event);
+        realtimeEvents.publishAfterCommit("/topic/pos", event);
     }
 
     private Long requireStation(AppUserPrincipal principal) {
