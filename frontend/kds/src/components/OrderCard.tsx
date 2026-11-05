@@ -8,8 +8,8 @@ interface Props {
   stationId: number;
   stationName: string;
   now: number;
-  onStart: (id: number) => void;
-  onFinish: (id: number) => void;
+  onStart: (id: number) => void | Promise<void>;
+  onFinish: (id: number) => void | Promise<void>;
 }
 
 const RANK: Record<string, number> = { COOKING: 0, CONFIRMED: 1, DONE: 2, SERVED: 3 };
@@ -41,7 +41,7 @@ export default function OrderCard({
   const stale = staleOrderInfo(order.createdAt, now);
 
   return (
-      <article className={`card${stale ? ' card--old' : ''}`}>
+      <article className={`card${stale ? ' card--old' : ''}`} aria-label={`Đơn ${order.id}, bàn ${order.tableNumber}`}>
         {stale && (
             <div className="card__warn" role="alert">
               <span aria-hidden="true">⚠</span>
@@ -57,7 +57,7 @@ export default function OrderCard({
         </div>
 
         <div className="card__meta">
-          <div className="card__order">Order #{order.id}</div>
+          <div className="card__order">Đơn #{order.id}</div>
           <div className={`card__wait ${waited >= 15 ? 'card__wait--long' : ''}`}>
             Đặt {formatOrderedAgo(order.createdAt, now)}
           </div>
@@ -81,7 +81,7 @@ export default function OrderCard({
 
       <div className="card__body">
         <section>
-          <h2 className="section-title">Món của {stationName}</h2>
+          <h2 className="section-title">Phụ trách · {stationName}</h2>
           {own.length === 0 ? (
             <p className="empty">Đơn này không có món nào cho khu của bạn.</p>
           ) : (

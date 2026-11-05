@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import OrderCard from '../components/OrderCard';
+import { getSla } from '../utils/time';
 import { useNow } from '../hooks/useNow';
 import { useOrders } from '../hooks/useOrders';
 import type { KdsOrder, Session } from '../types';
@@ -16,7 +17,7 @@ interface Props {
 
 export default function KitchenBoardPage({ session, onSignOut }: Props) {
   const now = useNow();
-  const { orders, loading, error, connected, start, finish, dismissError } = useOrders();
+  const { orders, loading, error, connected, start, finish, dismissError, refresh } = useOrders();
   // Khu bếp lấy từ tài khoản đang đăng nhập
   const stationId = session.stationId;
   const station = { id: session.stationId, name: session.stationName };
@@ -40,8 +41,10 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
     return {
       waiting: mine.filter((i) => i.status === 'CONFIRMED').length,
       cooking: mine.filter((i) => i.status === 'COOKING').length,
+      done: mine.filter((i) => i.status === 'DONE').length,
+      late: mine.filter((i) => getSla(i, now)?.level === 'late').length,
     };
-  }, [board, stationId]);
+  }, [board, stationId, now]);
 
   const goTo = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
     const rail = railRef.current;
@@ -136,92 +139,31 @@ export default function KitchenBoardPage({ session, onSignOut }: Props) {
   // Phím mũi tên trái/phải: cuộn từng order
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') goTo(Math.min(board.length - 1, range.first + 1));
-      if (e.key === 'ArrowLeft') goTo(Math.max(0, range.first - 1));
+      if (e.target instanceof HTMLElement && (e.target.closest('input, textarea, select') || e.target.isContentEditable)) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(Math.min(board.length - 1, range.first + 1)); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(Math.max(0, range.first - 1)); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [range.first, board.length, goTo]);
 
+  const firstOwnWork = board.findIndex(order => order.items.some(item => item.stationId === stationId && ['CONFIRMED','COOKING'].includes(item.status)));
   return (
     <div className="app">
       <header className="topbar">
-        <div className="topbar__left">
-          <div className="station-badge">{station.name}</div>
-          <span
-            className={`live ${connected ? 'live--on' : 'live--off'}`}
-            title={connected ? 'Đang nhận đơn trực tiếp' : 'Mất kết nối trực tiếp, đang tải định kỳ'}
-          >
-            <i className="live__dot" />
-            {connected ? 'Trực tiếp' : 'Mất kết nối'}
-          </span>
-        </div>
-
-        <div className="topbar__stats">
-          <div className="stat stat--wait">
-            <b>{counts.waiting}</b> chờ nấu
-          </div>
-          <div className="stat stat--cook">
-            <b>{counts.cooking}</b> đang nấu
-          </div>
-        </div>
-
-        <div className="topbar__right">
-          <button className="nav-btn" onClick={() => goTo(range.first - 1)} disabled={range.first <= 0} aria-label="Order trước">
-            ‹
-          </button>
-          <span className="pager">
-            {board.length === 0
-              ? 0
-              : range.first === range.last
-                ? range.first + 1
-                : `${range.first + 1}–${range.last + 1}`}{' '}
-            / {board.length}
-          </span>
-          <button
-            className="nav-btn"
-            onClick={() => goTo(range.first + 1)}
-            disabled={range.last >= board.length - 1}
-            aria-label="Order sau"
-          >
-            ›
-          </button>
-          <time className="clock">
-            {new Date(now).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-          </time>
-          <button className="logout-btn" onClick={onSignOut}>
-            Đăng xuất
-          </button>
-        </div>
+        <div className="kds-brand"><span className="kds-logo" aria-hidden="true">S·</span><div>SMART KITCHEN<small>ĐIỀU PHỐI CHẾ BIẾN</small></div></div>
+        <div className="kds-station-context"><span className="kds-context-label">KHU BẾP HIỆN TẠI</span><strong>{station.name}</strong></div>
+        <div className="kds-metrics" role="group" aria-label="T?nh h?nh khu b?p"><div className="kds-metric"><span><i className="kds-dot wait" /> Chờ nấu</span><strong>{loading ? '—' : counts.waiting.toString().padStart(2,'0')}</strong></div><div className="kds-metric cooking"><span><i className="kds-dot cook" /> Đang nấu</span><strong>{loading ? '—' : counts.cooking.toString().padStart(2,'0')}</strong></div><div className="kds-metric"><span><i className="kds-dot done" /> Đã xong</span><strong>{loading ? '—' : counts.done.toString().padStart(2,'0')}</strong></div><div className={`kds-metric ${counts.late ? 'late' : ''}`}><span><i className="kds-dot late" /> Trễ SLA</span><strong>{loading ? '—' : counts.late.toString().padStart(2,'0')}</strong></div></div>
+        <div className="topbar__right"><span className={`live ${connected ? 'live--on' : 'live--off'}`} title={connected ? 'Đang nhận đơn trực tiếp' : 'Mất kết nối trực tiếp, đang tải định kỳ'}><i className="live__dot" aria-hidden="true" />{connected ? 'Kết nối trực tiếp' : 'Mất kết nối'}</span><time className="clock">{new Date(now).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</time><span className="kds-user">{session.username}</span><button className="logout-btn" onClick={onSignOut}>Đăng xuất <span aria-hidden="true">↗</span></button></div>
       </header>
-
-      {error && (
-        <div className="toast" role="alert" onClick={dismissError}>
-          {error}
-        </div>
-      )}
-
-      <main className="board">
-        {loading ? (
-          <p className="board__empty">Đang tải đơn…</p>
-        ) : board.length === 0 ? (
-          <p className="board__empty">Chưa có order nào cần làm. Order mới sẽ hiện ở đây ngay khi lễ tân duyệt.</p>
-        ) : (
-          <div className="rail" ref={railRef} onScroll={onScroll}>
-            {board.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                stationId={stationId}
-                stationName={station.name}
-                now={now}
-                onStart={start}
-                onFinish={finish}
-              />
-            ))}
-          </div>
-        )}
+      <div className="kds-board-toolbar"><div className="kds-board-label"><h2>Hàng đợi chế biến</h2><span>{loading ? 'Đang tải…' : `${board.length} đơn`}</span></div><div className="kds-board-actions"><button className="kds-text-button" disabled={firstOwnWork < 0} onClick={() => goTo(firstOwnWork)}>Đơn còn việc <span aria-hidden="true">↗</span></button><button className="kds-refresh" onClick={() => void refresh()} aria-label="Làm mới danh sách đơn">↻ <span>Làm mới</span></button><div className="kds-paging"><button className="nav-btn" onClick={() => goTo(range.first-1)} disabled={range.first<=0 || !board.length} aria-label="Đơn trước">‹</button><span className="pager">{board.length === 0 ? '0' : range.first === range.last ? range.first+1 : `${range.first+1}–${range.last+1}`}<small> / {board.length}</small></span><button className="nav-btn" onClick={() => goTo(range.first+1)} disabled={range.last>=board.length-1 || !board.length} aria-label="Đơn sau">›</button></div></div></div>
+      {error && <div className="toast" role="alert"><span>{error}</span><button onClick={() => void refresh()}>Thử tải lại</button><button onClick={dismissError} aria-label="Đóng thông báo lỗi">✕</button></div>}
+      <main className="board" aria-label="Các đơn đã được duyệt">
+        {loading ? <div className="kds-skeleton" role="status" aria-label="Đang tải đơn">{[1,2,3].map(key => <div key={key}><span /><i /><i /><i /></div>)}</div>
+          : board.length === 0 ? <div className="board__empty"><span className="kds-empty-icon" aria-hidden="true">✓</span><h2>Bếp đã sẵn sàng</h2><p>Chưa có đơn cần hiển thị. Đơn mới sẽ xuất hiện sau khi lễ tân duyệt.</p><button className="kds-refresh" onClick={() => void refresh()}>↻ Làm mới danh sách</button></div>
+          : <div className="rail" ref={railRef} onScroll={onScroll} aria-label="Dải đơn hàng">{board.map(order => <OrderCard key={order.id} order={order} stationId={stationId} stationName={station.name} now={now} onStart={start} onFinish={finish} />)}</div>}
       </main>
+      <footer className="kds-footer"><span><i className="kds-dot wait" /> Chờ nấu <i className="kds-dot cook" /> Đang nấu <i className="kds-dot done" /> Đã xong <i className="kds-dot late" /> Trễ SLA</span><span>Dùng phím ← → hoặc vuốt ngang để chuyển đơn</span></footer>
     </div>
   );
 }

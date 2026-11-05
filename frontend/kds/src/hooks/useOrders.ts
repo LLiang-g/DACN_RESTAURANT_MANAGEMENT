@@ -17,6 +17,7 @@ export function useOrders() {
   const reload = useCallback(async () => {
     try {
       setOrders(await fetchOrders());
+      setError(null);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -68,5 +69,5 @@ export function useOrders() {
   const finish = useCallback((itemId: number) => act(() => finishItem(itemId)), [act]);
   const dismissError = useCallback(() => setError(null), []);
 
-  return { orders, loading, error, connected, start, finish, dismissError };
+  return { orders, loading, error, connected, start, finish, dismissError, refresh: reload };
 }
