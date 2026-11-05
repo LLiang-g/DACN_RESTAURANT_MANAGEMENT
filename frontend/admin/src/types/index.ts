@@ -158,7 +158,7 @@ export interface FoodRequest {
 export interface IngredientRequest {
   name: string;
   unit: string;
-  stockQuantity: number;
+  stockQuantity?: number;
   minThreshold: number;
 }
 

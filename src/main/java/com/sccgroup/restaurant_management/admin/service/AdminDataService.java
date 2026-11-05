@@ -204,18 +204,30 @@ public class AdminDataService {
     public Ingredient createIngredient(AdminDtos.IngredientRequest request, Actor actor) {
         validateIngredient(request);
         Ingredient saved = ingredients.save(new Ingredient(request.name().trim(), request.unit().trim(), request.stockQuantity(), request.minThreshold()));
+        if (saved.getStockQuantity().signum() > 0) {
+            stockTransactions.save(new StockTransaction(saved, StockTransactionType.IMPORT,
+                    saved.getStockQuantity(), "Tồn đầu khi tạo nguyên liệu", LocalDateTime.now()));
+        }
         log(actor, "create", "ingredient", saved.getId(), saved.getName());
         return saved;
     }
 
     @Transactional
     public Ingredient updateIngredient(Long id, AdminDtos.IngredientRequest request, Actor actor) {
+        requireText(request.name(), "Ingredient name");
+        requireText(request.unit(), "Ingredient unit");
+        nonNegative(request.minThreshold(), "Minimum threshold");
+        Ingredient item = ingredients.findByIdForUpdate(id).orElseThrow(() -> missing("Ingredient", id));
+        if (request.stockQuantity() != null) {
+            nonNegative(request.stockQuantity(), "Stock quantity");
+            if (request.stockQuantity().compareTo(item.getStockQuantity()) != 0) {
+                throw new BusinessException("STOCK_TRANSACTION_REQUIRED",
+                        "Vui lòng thay đổi tồn kho qua phiếu nhập, xuất hoặc điều chỉnh.");
+            }
+        }
         var before = logService.snapshot("ingredient", id);
-        validateIngredient(request);
-        Ingredient item = ingredient(id);
         item.setName(request.name().trim());
         item.setUnit(request.unit().trim());
-        item.setStockQuantity(request.stockQuantity());
         item.setMinThreshold(request.minThreshold());
         logUpdate(actor, "ingredient", id, before);
         return ingredients.save(item);
@@ -270,8 +282,18 @@ public class AdminDataService {
 
     @Transactional
     public AdminDtos.StockTransactionResponse createStockTransaction(AdminDtos.StockRequest request, Actor actor) {
-        positive(request.quantity(), "Stock quantity");
-        Ingredient ingredient = ingredient(request.ingredientId());
+        if (request.ingredientId() == null || request.type() == null) {
+            throw new BusinessException("STOCK_REQUEST_INVALID", "Phải chọn nguyên liệu và loại giao dịch kho.");
+        }
+        if (request.type() == StockTransactionType.ADJUST) {
+            if (request.quantity() == null || request.quantity().signum() == 0) {
+                throw new BusinessException("STOCK_ADJUST_INVALID", "Số lượng điều chỉnh phải khác 0.");
+            }
+        } else {
+            positive(request.quantity(), "Stock quantity");
+        }
+        Ingredient ingredient = ingredients.findByIdForUpdate(request.ingredientId())
+                .orElseThrow(() -> missing("Ingredient", request.ingredientId()));
         BigDecimal delta = switch (request.type()) {
             case IMPORT -> request.quantity();
             case EXPORT -> request.quantity().negate();

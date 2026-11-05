@@ -78,7 +78,11 @@ export default function InventoryPage() {
     setBusy(true);
     setError("");
     try {
-      if (editing) await updateIngredient(editing.id, form);
+      if (editing) await updateIngredient(editing.id, {
+        name: form.name,
+        unit: form.unit,
+        minThreshold: form.minThreshold,
+      });
       else await createIngredient(form);
       setOpen(false);
       setRevision((n) => n + 1);
@@ -102,9 +106,9 @@ export default function InventoryPage() {
     if (
       !stock.ingredientId ||
       !Number.isFinite(stock.quantity) ||
-      stock.quantity <= 0
+      (stock.type === "ADJUST" ? stock.quantity === 0 : stock.quantity <= 0)
     ) {
-      setError("Chọn nguyên liệu và số lượng lớn hơn 0.");
+      setError("Chọn nguyên liệu; nhập/xuất phải lớn hơn 0, điều chỉnh phải khác 0.");
       return;
     }
     setBusy(true);
@@ -365,12 +369,13 @@ export default function InventoryPage() {
           />
         </label>
         <label className="form-group">
-          Tồn kho
+          {editing ? "Tồn kho (thay đổi qua giao dịch kho)" : "Tồn kho ban đầu"}
           <input
             className="field wide"
             type="number"
             min="0"
             step="0.001"
+            disabled={editing !== null}
             value={form.stockQuantity}
             onChange={(e) =>
               setForm({ ...form, stockQuantity: Number(e.target.value) })
@@ -437,7 +442,7 @@ export default function InventoryPage() {
           >
             <option value="IMPORT">Nhập kho</option>
             <option value="EXPORT">Xuất kho / Hao hụt</option>
-            <option value="ADJUST">Điều chỉnh tăng</option>
+            <option value="ADJUST">Điều chỉnh tăng/giảm (số chênh lệch)</option>
           </select>
         </label>
         <label className="form-group">
@@ -445,7 +450,7 @@ export default function InventoryPage() {
           <input
             className="field wide"
             type="number"
-            min="0.001"
+            min={stock.type === "ADJUST" ? undefined : "0.001"}
             step="0.001"
             value={stock.quantity}
             onChange={(e) =>
