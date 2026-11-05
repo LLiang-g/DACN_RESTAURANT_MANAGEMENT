@@ -41,6 +41,7 @@ export default function InvoicePage({ tableId }: { tableId: number }) {
       getInvoice(tableId)
         .then((loadedInvoice) => {
           if (!alive) return
+          setError(null)
           setInvoice(loadedInvoice)
           setLoadedAt(Date.now())
           setNow(Date.now())
@@ -91,10 +92,10 @@ export default function InvoicePage({ tableId }: { tableId: number }) {
 
   return (
     <section className="customer-invoice-page">
-      <h2 className="customer-invoice-title">Hóa đơn của bàn</h2>
+      <div className="customer-invoice-heading"><p className="customer-eyebrow">MỌI MÓN, MỌI TRẠNG THÁI</p><h2 className="customer-invoice-title">Đơn đã gọi của bạn</h2><p>Theo dõi món đang được chuẩn bị và xem tổng tạm tính tại bàn.</p></div>
       {error && <p className="customer-error">{error}</p>}
       {!invoice && !error && <p className="customer-muted">Đang tải...</p>}
-      {invoice && invoice.orders.length === 0 && <p className="customer-muted">Bạn chưa gọi món nào.</p>}
+      {invoice && invoice.orders.length === 0 && <div className="customer-empty"><span aria-hidden="true">≡</span><h3>Bàn chưa có đơn gọi món</h3><p>Quay lại Thực đơn để bắt đầu lựa chọn món yêu thích.</p></div>}
 
       {invoice?.orders.slice().sort((a, b) => b.orderId - a.orderId).map((invoiceOrder) => (
         <div key={invoiceOrder.orderId} className="customer-order">

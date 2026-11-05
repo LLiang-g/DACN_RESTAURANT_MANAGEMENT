@@ -70,6 +70,7 @@ export default function OptionPicker({ foodId, onChange }: Props) {
               <button
                 key={option.id}
                 type="button"
+                aria-pressed={selected.includes(option.id)}
                 className={"customer-chip" + (selected.includes(option.id) ? " active" : "")}
                 onClick={() => toggle(optionGroup.id, option.id)}
               >

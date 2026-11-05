@@ -59,10 +59,10 @@ export default function CategoryTabs({ tabs, activeKey, onSelect }: {
   }
 
   return (
-    <nav className="customer-tabs">
+    <nav className="customer-tabs" aria-label="Danh mục thực đơn">
       <div className="customer-tabs-scroll" ref={scrollRef} onScroll={updateThumb}>
         {tabs.map((tabItem) => (
-          <button key={tabItem.key} className={tabItem.key === activeKey ? "active" : ""} onClick={() => onSelect(tabItem.key)}>
+          <button key={tabItem.key} aria-pressed={tabItem.key === activeKey} className={tabItem.key === activeKey ? "active" : ""} onClick={() => onSelect(tabItem.key)}>
             {tabItem.label}
           </button>
         ))}

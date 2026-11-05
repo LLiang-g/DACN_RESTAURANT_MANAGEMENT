@@ -8,6 +8,7 @@ import InvoicePage from "./components/InvoicePage"
 import ScrollToTopButton from "./components/ScrollToTopButton"
 import { ComboModal, FoodModal, Sheet } from "./components/Modals"
 import type { Menu, MenuCombo, MenuFood, OrderResult, TableInfo } from "./types/types"
+import FoodImage from "./components/FoodImage"
 import "./App.css"
 
 const COMBO_TAB = "combo"
@@ -20,6 +21,10 @@ export default function App() {
   const [menu, setMenu] = useState<Menu | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("")
+  const [search, setSearch] = useState("")
+  const [availableOnly, setAvailableOnly] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [callingStaff, setCallingStaff] = useState(false)
   const [foodModal, setFoodModal] = useState<MenuFood | null>(null)
   const [comboModal, setComboModal] = useState<MenuCombo | null>(null)
   const [cart, setCart] = useState<CartLine[]>([])
@@ -32,29 +37,34 @@ export default function App() {
   const [addedToastKey, setAddedToastKey] = useState(0) // đổi giá trị mỗi lần thêm để hiện lại thông báo
 
   useEffect(() => {
-    if (!tableId) return
+    if (!Number.isSafeInteger(tableId) || tableId <= 0) return
+    setError(null)
     Promise.all([getTable(tableId), getMenu()])
       .then(([loadedTable, loadedMenu]) => {
         setTable(loadedTable)
         setMenu(loadedMenu)
       })
       .catch((loadError: Error) => setError(loadError.message))
-  }, [tableId])
+  }, [tableId, reloadKey])
 
-  if (!tableId) {
-    return <div className="customer-center">Vui lòng quét mã QR trên bàn để gọi món.</div>
+  if (!Number.isSafeInteger(tableId) || tableId <= 0) {
+    return <div className="customer-center"><div className="customer-state-card"><span className="customer-state-mark">S·</span><p className="customer-eyebrow">CHÀO MỪNG BẠN</p><h1>Bữa ngon bắt đầu<br />từ chiếc bàn của bạn.</h1><p>Vui lòng quét mã QR đặt trên bàn để xem thực đơn và gọi món.</p><small>Nếu cần hỗ trợ, hãy liên hệ nhân viên nhà hàng.</small></div></div>
   }
-  if (error) return <div className="customer-center customer-error">{error}</div>
-  if (!menu || !table) return <div className="customer-center">Đang tải thực đơn...</div>
-
+  if (error) return <div className="customer-center"><div className="customer-state-card"><span className="customer-state-mark">S·</span><h1>Chưa thể tải thực đơn</h1><p role="alert">{error}</p><button className="customer-primary" onClick={() => setReloadKey(key => key + 1)}>Thử lại</button></div></div>
+  if (!menu || !table) return <div className="customer-loading" role="status" aria-label="Đang tải thực đơn"><div className="customer-loading-head" /><div className="customer-loading-hero" /><div className="customer-loading-grid">{[1,2,3,4].map(key => <div key={key} />)}</div></div>
   const tabs = [
+    ...menu.categories.map(category => ({ key: `c${category.id}`, label: category.name })),
     ...(menu.combos.length ? [{ key: COMBO_TAB, label: "Combo" }] : []),
-    ...menu.categories.map((menuCategory) => ({ key: `c${menuCategory.id}`, label: menuCategory.name })),
-
   ]
-  const tab = activeTab || tabs[0]?.key
-  const category = menu.categories.find((menuCategory) => `c${menuCategory.id}` === tab)
-
+  const tab = activeTab || tabs[0]?.key || ""
+  const category = menu.categories.find(item => `c${item.id}` === tab)
+  const query = search.trim().toLocaleLowerCase("vi")
+  const foods = (category?.foods ?? []).filter(food => (!availableOnly || food.available)
+    && `${food.name} ${food.description ?? ""}`.toLocaleLowerCase("vi").includes(query))
+  const combos = menu.combos.filter(combo => (!availableOnly || combo.available)
+    && `${combo.name} ${combo.items.map(item => item.foodName).join(" ")}`.toLocaleLowerCase("vi").includes(query))
+  const resultCount = tab === COMBO_TAB ? combos.length : foods.length
+  const heroImage = menu.categories.flatMap(item => item.foods).find(food => food.available && food.image)?.image
   function addLine(line: CartLine) {
     setCart((currentCart) => addToCart(currentCart, line))
     setFoodModal(null)
@@ -67,12 +77,15 @@ export default function App() {
   }
 
   async function onCallStaff() {
+    if (callingStaff) return
+    setCallingStaff(true)
     try {
       const callStaffResult = await callStaff(tableId)
       setStaffMessage(callStaffResult.alreadyPending ? "Nhân viên đã nhận yêu cầu, vui lòng chờ trong giây lát" : "Đã gọi nhân viên, vui lòng chờ trong giây lát")
     } catch (caughtError) {
       setStaffMessage((caughtError as Error).message)
     }
+    setCallingStaff(false)
     setTimeout(() => setStaffMessage(null), 4000)
   }
 
@@ -96,118 +109,44 @@ export default function App() {
   return (
     <div className="customer-app">
       <header className="customer-header">
-        <h1>Gọi món</h1>
-        <span>Bàn {table.tableNumber} · {table.floor}</span>
+        <a className="customer-brand" href="#" onClick={event => { event.preventDefault(); setInvoiceOpen(false) }}><span className="customer-logo" aria-hidden="true">S·</span><span>SMART DINING<small>GỌI MÓN TẠI BÀN</small></span></a>
+        <div className="customer-table-pill"><span aria-hidden="true">▦</span><div><strong>Bàn {table.tableNumber}</strong><small>{table.floor}</small></div></div>
       </header>
-      <div className="customer-actions">
-        {invoiceOpen && (
-            <button className="customer-back" aria-label="Quay lại thực đơn" onClick={() => { setInvoiceOpen(false); window.scrollTo(0, 0) }}>←</button>
-        )}
-        <button className={invoiceOpen ? "active" : ""} onClick={() => { setInvoiceOpen(true); window.scrollTo(0, 0) }}>🧾 Hóa đơn</button>
-        <button onClick={onCallStaff}>🔔 Gọi nhân viên</button>
+      <div className="customer-navigation">
+        <nav aria-label="Điều hướng gọi món"><button className={!invoiceOpen ? "active" : ""} aria-pressed={!invoiceOpen} onClick={() => { setInvoiceOpen(false); window.scrollTo(0,0) }}>Thực đơn</button><button className={invoiceOpen ? "active" : ""} aria-pressed={invoiceOpen} onClick={() => { setInvoiceOpen(true); window.scrollTo(0,0) }}>Đơn đã gọi</button></nav>
+        <button className="customer-staff-button" disabled={callingStaff} onClick={onCallStaff}><span aria-hidden="true">◉</span> {callingStaff ? "Đang gọi…" : "Gọi nhân viên"}</button>
       </div>
-      {staffMessage && <div className="customer-toast">{staffMessage}</div>}
-
-      {invoiceOpen ? (
-          <InvoicePage tableId={tableId} />
-      ) : (
-          <>
-          <CategoryTabs tabs={tabs} activeKey={tab} onSelect={setActiveTab} />
-      <main className="customer-list">
-        {tab === COMBO_TAB
-          ? menu.combos.map((combo) => (
-                <div
-                    key={combo.id}
-                    className={"customer-card clickable" + (combo.available ? "" : " off")}
-                    onClick={() => combo.available && setComboModal(combo)}
-                >
-                <div className="customer-card-body">
-                  <div className="customer-card-name">{combo.name}</div>
-                  <div className="customer-muted">{combo.items.map((comboItem) => `${comboItem.quantity} ${comboItem.foodName}`).join(" + ")}</div>
-                  {combo.remainingPortions != null && combo.available && <div className="customer-muted">Còn {combo.remainingPortions} suất</div>}
-                  <div>
-                    {combo.originalPrice > combo.price && <s className="customer-muted">{formatVnd(combo.originalPrice)} </s>}
-                    <b>{formatVnd(combo.price)}</b>
-                  </div>
-                  {!combo.available && <div className="customer-soldout">Tạm hết</div>}
-                </div>
-              </div>
-            ))
-          : category?.foods.map((food) => (
-                <div
-                    key={food.id}
-                    className={"customer-card clickable" + (food.available ? "" : " off")}
-                    onClick={() => food.available && setFoodModal(food)}
-                >
-                {food.image && <img src={food.image} alt={food.name} />}
-                <div className="customer-card-body">
-                  <div className="customer-card-name">{food.name}</div>
-                  {food.description && <div className="customer-muted">{food.description}</div>}
-                  {food.remainingPortions != null && food.available && <div className="customer-muted">Còn {food.remainingPortions} suất</div>}
-                  <div>
-                    <b>{formatVnd(food.price)}</b>
-                    {food.estimatedCookingTime != null && <span className="customer-muted"> · ~{food.estimatedCookingTime} phút</span>}
-                  </div>
-                  {!food.available && <div className="customer-soldout">Tạm hết</div>}
-                </div>
-              </div>
-            ))}
-      </main>
-      </>
-    )}
-      {cart.length > 0 && !invoiceOpen && (
-        <button className="customer-cartbar" onClick={() => setCartOpen(true)}>
-          <span>🛒 {cartCount(cart)} món</span>
-          <span>{formatVnd(cartTotal(cart))}</span>
-        </button>
-      )}
-
-      {addedToastKey > 0 && <div key={addedToastKey} className="customer-popup-toast">✓ Thêm thành công</div>}
-
+      {staffMessage && <div className="customer-toast" role="status">{staffMessage}</div>}
+      {invoiceOpen ? <InvoicePage tableId={tableId} /> : <>
+        <section className="customer-hero" aria-label="Chào mừng tại bàn"><div className="customer-hero-copy"><p className="customer-eyebrow">MỘT CHÚT THƯ THẢ, MỘT BỮA THẬT NGON</p><h1>Chọn món bạn thích.<br /><em>Để bếp lo phần còn lại.</em></h1><p>Khám phá thực đơn, chọn khẩu vị riêng và tận hưởng thời gian bên nhau.</p><a href="#customer-menu" className="customer-hero-link">Khám phá thực đơn <span aria-hidden="true">↘</span></a></div><div className="customer-hero-art"><FoodImage src={heroImage} alt="Một món trong thực đơn nhà hàng" /><span className="customer-hero-stamp">NẤU THEO ĐƠN<br /><strong>Thưởng thức<br />tại bàn</strong></span></div></section>
+        <div className="customer-menu-toolbar" id="customer-menu"><div><p className="customer-eyebrow">BẠN MUỐN DÙNG GÌ HÔM NAY?</p><h2>Thực đơn tại bàn</h2></div><label className="customer-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Tìm món trong danh mục…" aria-label="Tìm món trong danh mục" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
+        <CategoryTabs tabs={tabs} activeKey={tab} onSelect={key => { setActiveTab(key); setSearch("") }} />
+        <div className="customer-category-heading"><div><h3>{tab === COMBO_TAB ? "Cùng nhau dùng combo" : category?.name ?? "Thực đơn"}</h3><span>{resultCount} {tab === COMBO_TAB ? "combo" : "món"} để lựa chọn</span></div><label className="customer-availability"><input type="checkbox" checked={availableOnly} onChange={event => setAvailableOnly(event.target.checked)} /> Chỉ hiện còn món</label></div>
+        <main className="customer-list">
+          {tab === COMBO_TAB ? combos.map(combo => <button type="button" key={combo.id} className={`customer-card customer-combo-card${combo.available ? "" : " off"}`} disabled={!combo.available} onClick={() => setComboModal(combo)} aria-label={`Chọn combo ${combo.name}`}>
+            <div className="customer-combo-visual"><span className="customer-combo-kicker">ĐI CÙNG NHAU, ĂN CÙNG NHAU</span><strong>{combo.name}</strong><span>{combo.items.reduce((sum,item) => sum + item.quantity,0)} phần trong combo</span><div className="customer-combo-rings" aria-hidden="true"><i /><i /><i /></div></div>
+            <div className="customer-card-body"><div className="customer-card-name">{combo.name}</div><p className="customer-description">{combo.items.map(item => `${item.quantity} ${item.foodName}`).join(" · ")}</p><div className="customer-food-meta"><span>{combo.available ? combo.remainingPortions != null ? `Còn ${combo.remainingPortions} suất` : "Sẵn sàng phục vụ" : "Tạm hết"}</span>{combo.originalPrice > combo.price && <span className="customer-discount">Tiết kiệm {formatVnd(combo.originalPrice-combo.price)}</span>}</div><div className="customer-price-row"><div>{combo.originalPrice > combo.price && <s>{formatVnd(combo.originalPrice)}</s>}<b>{formatVnd(combo.price)}</b></div><span className="customer-add-icon" aria-hidden="true">{combo.available ? "+" : "—"}</span></div></div>
+          </button>) : foods.map(food => <button type="button" key={food.id} className={`customer-card${food.available ? "" : " off"}`} disabled={!food.available} onClick={() => setFoodModal(food)} aria-label={`Chọn món ${food.name}`}>
+            <div className="customer-food-visual"><FoodImage src={food.image} alt={food.name} />{!food.available && <span className="customer-image-badge">Tạm hết</span>}</div>
+            <div className="customer-card-body"><div className="customer-card-name">{food.name}</div><p className="customer-description">{food.description || "Chọn món để xem chi tiết và tùy chọn khẩu vị."}</p><div className="customer-food-meta"><span>{food.estimatedCookingTime != null ? `~${food.estimatedCookingTime} phút` : "Chế biến theo đơn"}</span>{food.available && food.remainingPortions != null && <span>Còn {food.remainingPortions} suất</span>}</div><div className="customer-price-row"><b>{formatVnd(food.price)}</b><span className="customer-add-icon" aria-hidden="true">{food.available ? "+" : "—"}</span></div></div>
+          </button>)}
+        </main>
+        {resultCount === 0 && <div className="customer-empty"><span aria-hidden="true">⌕</span><h3>Chưa tìm thấy món phù hợp</h3><p>Thử danh mục khác hoặc thay đổi từ khóa, bộ lọc.</p><button className="customer-secondary" onClick={() => { setSearch(""); setAvailableOnly(false) }}>Xóa bộ lọc</button></div>}
+        <footer className="customer-footer"><span className="customer-logo" aria-hidden="true">S·</span><div><strong>Một bữa ngon, một khoảng thời gian vui.</strong><p>Cần hỗ trợ? Nhân viên nhà hàng luôn sẵn sàng.</p></div><span>SMART DINING</span></footer>
+      </>}
+      {cart.length > 0 && !invoiceOpen && <button className="customer-cartbar" onClick={() => setCartOpen(true)}><span className="customer-cart-count">{cartCount(cart)}</span><span className="customer-cartbar-label">Xem giỏ món<small>{cart.length} lựa chọn của bạn</small></span><strong>{formatVnd(cartTotal(cart))}</strong><span aria-hidden="true">→</span></button>}
+      {addedToastKey > 0 && <div key={addedToastKey} className="customer-popup-toast" role="status">✓ Đã thêm vào giỏ món</div>}
       {foodModal && <FoodModal food={foodModal} onAdd={addLine} onClose={() => setFoodModal(null)} />}
       {comboModal && <ComboModal combo={comboModal} onAdd={addLine} onClose={() => setComboModal(null)} />}
-
-      {cartOpen && (
-        <Sheet title="Đơn của bạn" onClose={() => setCartOpen(false)}>
-          {cart.map((cartLine) => (
-            <div key={cartLine.key} className="customer-cartline">
-              <div className="customer-card-body">
-                <div className="customer-card-name">{cartLine.name}</div>
-                <div className="customer-muted">
-                  {cartLine.kind === "food"
-                    ? cartLine.optionNames.join(", ")
-                    : cartLine.selections.filter((selection) => selection.optionNames.length).map((selection) => `${selection.foodName}: ${selection.optionNames.join(", ")}`).join("; ")}
-                </div>
-                <div>{formatVnd(lineTotal(cartLine))}</div>
-              </div>
-              <div className="customer-stepper">
-                <button onClick={() => setCart((currentCart) => changeQuantity(currentCart, cartLine.key, -1))}>−</button>
-                <span>{cartLine.quantity}</span>
-                <button onClick={() => setCart((currentCart) => changeQuantity(currentCart, cartLine.key, 1))}>+</button>
-              </div>
-            </div>
-          ))}
-          {sendError && <p className="customer-error">{sendError}</p>}
-          <div className="customer-sheet-foot">
-            <b>Tổng: {formatVnd(cartTotal(cart))}</b>
-            <button className="customer-primary" disabled={sending || cart.length === 0} onClick={submit}>
-              {sending ? "Đang gửi..." : "Gửi đơn"}
-            </button>
-          </div>
-        </Sheet>
-      )}
-
-      {result && (
-        <Sheet title="Đã gửi đơn ✓" onClose={() => setResult(null)}>
-          <p>Đơn #{result.orderId} đang chờ lễ tân xác nhận.</p>
-          <p className="customer-muted">Tạm tính: {formatVnd(result.totalAmount)}</p>
-          <div className="customer-sheet-foot">
-            <button className="customer-secondary" onClick={() => { setResult(null); setInvoiceOpen(true) }}>Xem hóa đơn</button>
-            <button className="customer-primary" onClick={() => setResult(null)}>Gọi thêm món</button>
-          </div>
-        </Sheet>
-      )}
-
+      {cartOpen && <Sheet title="Giỏ món của bạn" onClose={() => setCartOpen(false)} dismissible={!sending}>
+        <p className="customer-sheet-intro">Bàn {table.tableNumber} · Kiểm tra món trước khi gửi đến nhà hàng.</p>
+        {cart.length === 0 && <div className="customer-empty"><h3>Giỏ món đang trống</h3><p>Quay lại thực đơn để chọn món bạn thích.</p></div>}
+        {cart.map(line => <div key={line.key} className="customer-cartline"><div className="customer-card-body"><div className="customer-card-name">{line.name}</div><p className="customer-muted">{line.kind === "food" ? line.optionNames.join(", ") : line.selections.filter(selection => selection.optionNames.length).map(selection => `${selection.foodName}: ${selection.optionNames.join(", ")}`).join("; ")}</p><b>{formatVnd(lineTotal(line))}</b></div><div className="customer-stepper"><button disabled={sending} aria-label={`Giảm ${line.name}`} onClick={() => setCart(current => changeQuantity(current,line.key,-1))}>−</button><span>{line.quantity}</span><button disabled={sending || line.quantity >= 99} aria-label={`Tăng ${line.name}`} onClick={() => setCart(current => changeQuantity(current,line.key,1))}>+</button></div></div>)}
+        {sendError && <p className="customer-error" role="alert">{sendError}</p>}
+        <div className="customer-sheet-foot"><div><small>Tạm tính</small><b>{formatVnd(cartTotal(cart))}</b></div><button className="customer-primary" disabled={sending || cart.length===0} onClick={submit}>{sending ? "Đang gửi…" : "Gửi đơn gọi món"}<span aria-hidden="true"> →</span></button></div>
+        <p className="customer-order-note">Đơn sẽ được lễ tân xác nhận trước khi bếp chế biến.</p>
+      </Sheet>}
+      {result && <Sheet title="Nhà hàng đã nhận đơn" onClose={() => setResult(null)}><div className="customer-success-mark" aria-hidden="true">✓</div><h4 className="customer-success-title">Cảm ơn bạn đã gọi món!</h4><p className="customer-sheet-intro">Đơn #{result.orderId} đang chờ lễ tân xác nhận. Bạn có thể theo dõi trạng thái tại mục Đơn đã gọi.</p><div className="customer-success-total"><span>Tạm tính đơn vừa gửi</span><strong>{formatVnd(result.totalAmount)}</strong></div><div className="customer-sheet-foot"><button className="customer-secondary" onClick={() => { setResult(null); setInvoiceOpen(true); window.scrollTo(0,0) }}>Theo dõi đơn</button><button className="customer-primary" onClick={() => setResult(null)}>Gọi thêm món</button></div></Sheet>}
       <ScrollToTopButton />
     </div>
   )
