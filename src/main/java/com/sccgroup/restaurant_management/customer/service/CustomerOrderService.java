@@ -42,6 +42,7 @@ import com.sccgroup.restaurant_management.domain.service.StockReservationService
 import com.sccgroup.restaurant_management.domain.service.InvoiceService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -147,7 +148,7 @@ public class CustomerOrderService {
         }
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public OrderResponse placeOrder(PlaceOrderRequest request) {
         if (request == null || request.tableId() == null) {
             throw new BusinessException("Thiếu thông tin bàn");
@@ -161,9 +162,7 @@ public class CustomerOrderService {
         // Khóa dòng bàn để các đơn đồng thời của cùng một bàn được xử lý tuần tự
         RestaurantTable table = tableRepository.findByIdForUpdate(request.tableId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID " + request.tableId()));
-        // Khóa kho làm cổng giữ chỗ: hai bàn khác nhau không thể cùng giành món cuối cùng.
-        // Phải đặt TRƯỚC mọi lần đọc không khóa để các truy vấn sau thấy dữ liệu mới nhất.
-        ingredientRepository.findAllForUpdate();
+
 
         // ---- 1. Nạp dữ liệu theo lô ----
         Set<Long> comboIds = new LinkedHashSet<>();
@@ -257,14 +256,38 @@ public class CustomerOrderService {
             }
         }
 
-        // ---- 3. Kiểm tra còn đủ nguyên liệu (cộng dồn cả đơn, KHÔNG trừ kho) ----
-        // Bắt đầu từ phần đã giữ chỗ bởi các đơn trước chưa tới bếp (kho thật chỉ trừ khi bếp Nấu)
-        Map<Long, BigDecimal> used = reservationService.reservedByIngredient();
+        // ---- 3. Lock only ingredients needed by this order, including options and combo children. ----
+        List<List<IngredientNeed>> needsByItem = new ArrayList<>();
+        Set<Long> ingredientIds = new java.util.TreeSet<>();
         for (PlannedItem plannedItem : plannedItems) {
             List<IngredientNeed> needs = requirementCalculator.calculate(
                     recipes.getOrDefault(plannedItem.food().getId(), List.of()), plannedItem.quantity(), plannedItem.options());
-            if (!requirementCalculator.isSufficient(needs, used)) {
-                throw new BusinessException("Món \"" + plannedItem.food().getName() + "\" hiện tạm hết, vui lòng chọn món khác");
+            needsByItem.add(needs);
+            needs.forEach(need -> ingredientIds.add(need.ingredient().getId()));
+        }
+
+        Map<Long, BigDecimal> stockByIngredient = new HashMap<>();
+        for (Long ingredientId : ingredientIds) {
+            ingredientRepository.findByIdForUpdate(ingredientId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nguyên liệu với ID " + ingredientId));
+            // A scalar query avoids using stale Ingredient values loaded while planning recipes/options.
+            BigDecimal stock = ingredientRepository.findStockQuantityById(ingredientId);
+            stockByIngredient.put(ingredientId, orZero(stock));
+        }
+
+        // READ_COMMITTED sees reservations committed by the transaction that held the lock before us.
+        Map<Long, BigDecimal> used = ingredientIds.isEmpty()
+                ? new HashMap<>() : reservationService.reservedByIngredient();
+        for (int index = 0; index < plannedItems.size(); index++) {
+            PlannedItem plannedItem = plannedItems.get(index);
+            List<IngredientNeed> needs = needsByItem.get(index);
+            for (IngredientNeed need : needs) {
+                Long ingredientId = need.ingredient().getId();
+                BigDecimal available = stockByIngredient.get(ingredientId)
+                        .subtract(used.getOrDefault(ingredientId, BigDecimal.ZERO));
+                if (available.compareTo(need.amount()) < 0) {
+                    throw new BusinessException("Món \"" + plannedItem.food().getName() + "\" hiện tạm hết, vui lòng chọn món khác");
+                }
             }
             requirementCalculator.accumulate(needs, used);
         }
