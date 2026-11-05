@@ -82,7 +82,9 @@ public class PosOrderActionService {
 
 
     private OrderItem getPendingItemOrThrow(Long orderItemId) {
-        OrderItem item = orderItemRepository.findById(orderItemId)
+        // Lock before reading status so approval/rejection cannot overwrite a concurrent cancellation.
+        OrderItem item = orderItemRepository.findAllByIdForUpdate(java.util.List.of(orderItemId))
+                .stream().findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
 
         if (item.getStatus() != OrderItemStatus.PENDING) {
