@@ -240,6 +240,7 @@ CREATE TABLE `call_staff_request` (
   FOREIGN KEY (`table_id`) REFERENCES `restaurant_table`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE payment_transaction ADD COLUMN pay_url TEXT NULL, ADD COLUMN expires_at DATETIME NULL;
 -- ============================================================
 -- SAMPLE DATA
 -- ============================================================

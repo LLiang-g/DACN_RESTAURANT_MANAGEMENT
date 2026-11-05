@@ -28,6 +28,25 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
   // MỚI: giao dịch thanh toán online đang theo dõi
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentReady, setPaymentReady] = useState(false);
+  const [showPayment, setShowPayment] = useState(true);
+  const [recoveryVersion, setRecoveryVersion] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setPaymentReady(false);
+    setPayment(null);
+    posApi.getPendingPayment(invoiceId).then((pending) => {
+      if (!active) return;
+      setPayment(pending);
+      setShowPayment(true);
+      if (pending) { setMethod('BANK_TRANSFER'); setProvider(pending.provider); }
+      setPaymentReady(true);
+    }).catch(() => {
+      if (active) setError('Không kiểm tra được giao dịch đang chờ. Hãy thử tải lại trước khi thanh toán.');
+    });
+    return () => { active = false; };
+  }, [invoiceId, recoveryVersion]);
 
   // State cho popup nhập lý do trả món ở giữa màn hình
   const [returningItemId, setReturningItemId] = useState<number | null>(null);
@@ -57,10 +76,11 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
   }, [invoiceId, refreshVersion]);
 
   // MỚI: hỏi server trạng thái giao dịch; nếu đã SUCCESS thì tải lại hóa đơn (lúc này là PAID)
-  const syncPaymentStatus = async (txnRef: string) => {
-    const latest = await posApi.getPayment(txnRef);
+  const syncPaymentStatus = async (txnRef: string, reconcile = false) => {
+    const latest = reconcile && payment?.provider === 'VNPAY'
+      ? await posApi.reconcilePayment(txnRef) : await posApi.getPayment(txnRef);
     // Chỉ ghép trạng thái mới vào, giữ nguyên payUrl vì API GET không trả payUrl
-    setPayment((prev) => (prev && prev.txnRef === txnRef ? { ...prev, status: latest.status } : prev));
+    setPayment((prev) => (prev && prev.txnRef === txnRef ? { ...prev, ...latest } : prev));
     if (latest.status === 'SUCCESS') {
       await loadInvoice();
       onChanged();
@@ -69,7 +89,7 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
 
   // MỚI: polling 2 giây/lần khi đang chờ
   useEffect(() => {
-    if (!payment || payment.status !== 'PENDING') return;
+    if (!payment || !['PENDING', 'RECONCILING', 'EXPIRED'].includes(payment.status)) return;
     const timer = setInterval(() => {
       syncPaymentStatus(payment.txnRef).catch(() => {
         // Lỗi mạng tạm thời: bỏ qua, lần poll sau sẽ thử lại
@@ -103,6 +123,8 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
     try {
       const created = await posApi.createPayment(invoiceId, provider);// k mock nữa
       setPayment(created);
+      setMethod('BANK_TRANSFER');
+      setShowPayment(true);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Không tạo được giao dịch thanh toán.');
     } finally {
@@ -222,10 +244,10 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
     invoice?.combos.some((c) => c.items.some((i) => ['CONFIRMED', 'COOKING', 'DONE'].includes(i.status)));
 
   // MỚI: đang chờ tiền về thì khóa các thao tác có thể làm đổi hóa đơn
-  const waitingPayment = payment?.status === 'PENDING';
+  const waitingPayment = !paymentReady || paymentBusy || !!payment && ['PENDING', 'RECONCILING', 'EXPIRED'].includes(payment.status);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => { if (!paymentBusy) onClose(); }}>
       <div className="modal invoice-modal" onClick={(e) => e.stopPropagation()}>
         {loading && <p>Đang tải...</p>}
 
@@ -378,22 +400,34 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
             )}
 
             {/* MỚI: màn hình chờ / kết quả thanh toán online */}
-            {payment && (
+            {payment && showPayment && (
               <PaymentPanel
                 payment={payment}
                 busy={paymentBusy}
                 onMockConfirm={handleMockConfirm}
-                onBack={() => setPayment(null)}
+                onRefresh={() => {
+                  if (!payment || paymentBusy) return;
+                  setPaymentBusy(true);
+                  void syncPaymentStatus(payment.txnRef, true)
+                    .catch(() => setError('Chưa kiểm tra được kết quả. Hệ thống vẫn giữ giao dịch để đối soát.'))
+                    .finally(() => setPaymentBusy(false));
+                }}
+                onBack={() => {
+                  if (['PENDING', 'RECONCILING', 'EXPIRED'].includes(payment.status)) setShowPayment(false);
+                  else { setPayment(null); setRecoveryVersion(v => v + 1); }
+                }}
               />
             )}
 
+            {!paymentReady && <p role="status">Đang kiểm tra giao dịch thanh toán… <button onClick={() => setRecoveryVersion(v => v + 1)}>Kiểm tra lại</button></p>}
+            {payment && ['PENDING', 'RECONCILING', 'EXPIRED'].includes(payment.status) && !showPayment && <div className="payment-panel pending"><p>Hóa đơn vẫn đang chờ thanh toán online. Bạn có thể đóng cửa sổ để xử lý bàn khác.</p><button className="pay-btn" onClick={() => setShowPayment(true)}>Mở lại mã QR đang chờ</button></div>}
             {error && <p className="login-error">{error}</p>}
 
             <div className="modal-actions">
               <button className="free-table-btn" onClick={handleFreeTable} disabled={submitting || waitingPayment}>
                 Đưa bàn về Trống
               </button>
-              <button onClick={onClose} disabled={submitting}>Đóng</button>
+              <button onClick={onClose} disabled={submitting || paymentBusy}>Đóng</button>
 
               <button className="print-btn" onClick={() => window.print()} disabled={submitting}>
                 In hóa đơn
@@ -410,7 +444,7 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
                   </button>
 
                   {method === 'CASH' ? (
-                    <button className="pay-btn" onClick={handlePay} disabled={submitting || hasPending}>
+                    <button className="pay-btn" onClick={handlePay} disabled={submitting || hasPending || waitingPayment}>
                       Thanh toán
                     </button>
                   ) : (

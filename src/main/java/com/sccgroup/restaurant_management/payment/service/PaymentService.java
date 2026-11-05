@@ -47,10 +47,16 @@ public class PaymentService {
         }
         BigDecimal total = posInvoiceService.preparePayment(invoiceId); // khóa + kiểm tra
 
-        // A new local QR does not invalidate a previously issued provider payment link.
-        if (!txRepository.findByInvoiceIdAndStatus(invoiceId, PaymentTransactionStatus.PENDING).isEmpty()) {
-            throw new ConflictException("PAYMENT_PENDING_EXISTS",
-                    "Hóa đơn còn giao dịch chờ. Vui lòng tiếp tục giao dịch hiện tại hoặc đối soát trước khi tạo mới.");
+        var existing = txRepository.findByInvoiceIdAndStatusIn(invoiceId, com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES);
+        if (!existing.isEmpty()) {
+            PaymentTransaction pending = latestPending(existing);
+            if (pending.getProvider() != type) {
+                throw new ConflictException("PAYMENT_PENDING_EXISTS", "Hóa đơn đang chờ thanh toán bằng phương thức khác. Hãy mở lại giao dịch đang chờ.");
+            }
+            if (type == PaymentProviderType.VNPAY && pending.getPayUrl() == null) {
+                throw new ConflictException("PAYMENT_RESUME_UNAVAILABLE", "Giao dịch cũ chưa lưu link QR. Cần kiểm tra và đối soát giao dịch; không tạo link thay thế.");
+            }
+            return toResponse(pending);
         }
 
         String txnRef = "INV" + invoiceId + "T" + System.currentTimeMillis();
@@ -58,7 +64,8 @@ public class PaymentService {
                 new PaymentTransaction(invoiceRepository.getReferenceById(invoiceId), type, txnRef, total));
 
         PaymentInitResult init = provider.initiate(tx, clientIp);
-        return new PaymentResponse(tx.getTxnRef(), type, tx.getAmount(), tx.getStatus(), init.payUrl());
+        tx.setPaymentLink(init.payUrl(), init.expiresAt());
+        return toResponse(tx);
     }
 
     /** Dùng chung cho webhook giả lập và IPN VNPay sau này. Idempotent. */
@@ -79,7 +86,8 @@ public class PaymentService {
         if (tx.getStatus() == PaymentTransactionStatus.SUCCESS) {
             return tx.getStatus(); // Duplicate result: never close or charge the invoice again.
         }
-        boolean waiting = tx.getStatus() == PaymentTransactionStatus.PENDING;
+        boolean waiting = tx.getStatus() == PaymentTransactionStatus.PENDING
+                || tx.getStatus() == PaymentTransactionStatus.RECONCILING;
         boolean locallyExpiredSuccess = tx.getStatus() == PaymentTransactionStatus.EXPIRED && success;
         if (!waiting && !locallyExpiredSuccess) {
             if (success) {
@@ -104,7 +112,27 @@ public class PaymentService {
     public PaymentResponse get(String txnRef) {
         PaymentTransaction tx = txRepository.findByTxnRef(txnRef)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch"));
-        return new PaymentResponse(tx.getTxnRef(), tx.getProvider(), tx.getAmount(), tx.getStatus(), null);
+        return toResponse(tx);
+    }
+
+    /** Recover the persisted pending link without initiating a new provider transaction. */
+    @Transactional
+    public PaymentResponse getPending(Long invoiceId) {
+        invoiceRepository.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        var pending = txRepository.findByInvoiceIdAndStatusIn(invoiceId, com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES);
+        return pending.isEmpty() ? null : toResponse(latestPending(pending));
+    }
+
+    private PaymentTransaction latestPending(List<PaymentTransaction> pending) {
+        return pending.stream().max(java.util.Comparator.comparing(PaymentTransaction::getId)).orElseThrow();
+    }
+
+    private PaymentResponse toResponse(PaymentTransaction tx) {
+        String expiry = tx.getExpiresAt() == null ? null : tx.getExpiresAt()
+                .atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime().toString();
+        return new PaymentResponse(tx.getTxnRef(), tx.getProvider(), tx.getAmount(), tx.getStatus(),
+                tx.getStatus() == PaymentTransactionStatus.PENDING ? tx.getPayUrl() : null, expiry);
     }
 
     @Transactional

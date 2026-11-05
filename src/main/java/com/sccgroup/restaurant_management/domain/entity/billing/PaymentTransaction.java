@@ -41,6 +41,30 @@ public class PaymentTransaction {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Column(name = "pay_url", columnDefinition = "TEXT")
+    private String payUrl;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    public String getPayUrl() { return payUrl; }
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public void setPaymentLink(String payUrl, LocalDateTime expiresAt) {
+        this.payUrl = payUrl;
+        this.expiresAt = expiresAt;
+    }
+
+    @Column(name = "next_reconcile_at")
+    private LocalDateTime nextReconcileAt;
+    @Column(name = "last_reconcile_code", length = 64)
+    private String lastReconcileCode;
+    public LocalDateTime getNextReconcileAt() { return nextReconcileAt; }
+    public String getLastReconcileCode() { return lastReconcileCode; }
+    public void recordReconciliation(LocalDateTime next, String code) {
+        this.nextReconcileAt = next;
+        this.lastReconcileCode = code;
+    }
+
     protected PaymentTransaction() {}
 
     public PaymentTransaction(Invoice invoice, PaymentProviderType provider, String txnRef, BigDecimal amount) {

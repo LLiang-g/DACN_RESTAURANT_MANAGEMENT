@@ -49,6 +49,13 @@ export const posApi = {
       .post<PaymentResponse>(`/api/pos/invoices/${invoiceId}/payments`, { provider })
       .then((r) => r.data),
 
+  getPendingPayment: (invoiceId: number) =>
+    apiClient.get<PaymentResponse | null>(`/api/pos/invoices/${invoiceId}/payments/pending`)
+      .then((r) => r.status === 204 ? null : r.data),
+
+  reconcilePayment: (txnRef: string) =>
+    apiClient.post<PaymentResponse>(`/api/pos/payments/${txnRef}/reconcile`).then(r => r.data),
+
   getPayment: (txnRef: string) =>
     apiClient.get<PaymentResponse>(`/api/pos/payments/${txnRef}`).then((r) => r.data),
 

@@ -181,8 +181,7 @@ public class CustomerOrderService {
             throw new ConflictException("INVOICE_NOT_OPEN",
                     "Hóa đơn đã đóng trong lúc gửi đơn. Vui lòng tải lại thông tin bàn.");
         }
-        if (!paymentTransactionRepository.findByInvoiceIdAndStatus(
-                invoice.getId(), PaymentTransactionStatus.PENDING).isEmpty()) {
+        if (!paymentTransactionRepository.findByInvoiceIdAndStatusIn(invoice.getId(), com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES).isEmpty()) {
             throw new ConflictException("INVOICE_PAYMENT_PENDING",
                     "Bàn đang chờ thanh toán. Vui lòng hoàn tất hoặc đối soát giao dịch trước khi gọi thêm món.");
         }

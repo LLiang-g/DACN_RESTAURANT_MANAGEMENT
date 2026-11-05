@@ -27,7 +27,7 @@ public class VnPayController {
         this.paymentService = paymentService;
     }
 
-    /** VNPay (máy chủ) gọi vào đây để báo kết quả. Đây là nguồn sự thật duy nhất để đóng hóa đơn. */
+    /** Verified IPN and verified QueryDR share the same settlement path. */
     @GetMapping("/ipn")
     public Map<String, String> ipn(@RequestParam Map<String, String> params) {
         if (!vnPayProvider.isValidSignature(params)) {
@@ -43,6 +43,11 @@ public class VnPayController {
 
         boolean success = "00".equals(params.get("vnp_ResponseCode"))
                 && "00".equals(params.get("vnp_TransactionStatus"));
+
+        // Only a final failure is allowed to release the invoice for another payment.
+        if (!success && !"02".equals(params.get("vnp_TransactionStatus"))) {
+            return rsp("99", "Awaiting reconciliation");
+        }
 
         try {
             paymentService.applyResult(params.get("vnp_TxnRef"), amount, success, params.get("vnp_TransactionNo"));

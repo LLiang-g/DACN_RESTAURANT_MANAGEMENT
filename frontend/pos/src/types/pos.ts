@@ -91,7 +91,7 @@ export interface InvoiceComboItem {
 
 
 export type PaymentProviderType = 'MOCK' | 'VNPAY';
-export type PaymentTxStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED';
+export type PaymentTxStatus = 'PENDING' | 'RECONCILING' | 'SUCCESS' | 'FAILED' | 'EXPIRED';
 
 export interface PaymentResponse {
   txnRef: string;
@@ -99,4 +99,5 @@ export interface PaymentResponse {
   amount: number;
   status: PaymentTxStatus;
   payUrl: string | null;
+  expiresAt?: string | null;
 }

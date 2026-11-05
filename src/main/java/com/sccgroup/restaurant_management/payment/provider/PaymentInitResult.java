@@ -1,3 +1,5 @@
 package com.sccgroup.restaurant_management.payment.provider;
-
-public record PaymentInitResult(String payUrl) {}
+import java.time.LocalDateTime;
+public record PaymentInitResult(String payUrl, LocalDateTime expiresAt) {
+    public PaymentInitResult(String payUrl) { this(payUrl, null); }
+}

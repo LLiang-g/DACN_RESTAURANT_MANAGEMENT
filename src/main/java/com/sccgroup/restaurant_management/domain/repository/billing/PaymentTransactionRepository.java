@@ -32,4 +32,13 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     Optional<BigDecimal> findAmountByTxnRef(@Param("txnRef") String txnRef);
 
     List<PaymentTransaction> findByInvoiceIdAndStatus(Long invoiceId, PaymentTransactionStatus status);
+    List<PaymentTransaction> findByInvoiceIdAndStatusIn(Long invoiceId, java.util.Collection<PaymentTransactionStatus> statuses);
+
+    @Query("select t.txnRef from PaymentTransaction t where t.provider = :provider and t.status in :statuses " +
+           "and (t.expiresAt <= :now or t.status = com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransactionStatus.EXPIRED) " +
+           "and (t.nextReconcileAt is null or t.nextReconcileAt <= :now) " +
+           "order by coalesce(t.nextReconcileAt, t.createdAt), t.id")
+    List<String> findDueReconciliation(@Param("provider") PaymentProviderType provider,
+            @Param("statuses") java.util.Collection<PaymentTransactionStatus> statuses,
+            @Param("now") java.time.LocalDateTime now, org.springframework.data.domain.Pageable pageable);
 }

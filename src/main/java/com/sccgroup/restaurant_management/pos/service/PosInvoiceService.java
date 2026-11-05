@@ -5,6 +5,8 @@ import com.sccgroup.restaurant_management.common.exception.ConflictException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.common.realtime.InvoiceStatusEvent;
 import com.sccgroup.restaurant_management.common.realtime.RealtimeEventPublisher;
+import com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransactionStatus;
+import com.sccgroup.restaurant_management.domain.repository.billing.PaymentTransactionRepository;
 import com.sccgroup.restaurant_management.domain.entity.billing.Invoice;
 import com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus;
 import com.sccgroup.restaurant_management.domain.entity.billing.PaymentMethod;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 public class PosInvoiceService {
 
     private final InvoiceRepository invoiceRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
@@ -43,8 +46,10 @@ public class PosInvoiceService {
                              OrderItemRepository orderItemRepository,
                              OrderComboRepository orderComboRepository,
                              RealtimeEventPublisher realtimeEventPublisher,
-                             TableReleaseService tableReleaseService) {
+                             TableReleaseService tableReleaseService,
+                             PaymentTransactionRepository paymentTransactionRepository) {
         this.invoiceRepository = invoiceRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderComboRepository = orderComboRepository;
@@ -133,6 +138,12 @@ public class PosInvoiceService {
     @Transactional
     public void pay(Long invoiceId, PayRequest request) {
         Invoice invoice = lockOpenInvoiceOrThrow(invoiceId);
+        // Same invoice lock as online create/callback: do not collect cash while a link is pending.
+        if (!paymentTransactionRepository.findByInvoiceIdAndStatusIn(invoiceId, com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES).isEmpty()) {
+            throw new ConflictException("INVOICE_PAYMENT_PENDING",
+                    "Hóa đơn đang chờ thanh toán online. Vui lòng hoàn tất hoặc đối soát giao dịch trước khi thu tiền mặt.");
+        }
+
         List<OrderItem> items = loadInvoiceItems(invoiceId);
         List<OrderCombo> combos = loadInvoiceCombos(invoiceId);
 

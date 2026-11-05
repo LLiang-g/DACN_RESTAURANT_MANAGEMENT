@@ -30,4 +30,10 @@ public class PosPaymentController {
     public PaymentResponse get(@PathVariable String txnRef) {
         return paymentService.get(txnRef);
     }
+    @GetMapping("/invoices/{invoiceId}/payments/pending")
+    public ResponseEntity<PaymentResponse> pending(@PathVariable Long invoiceId) {
+        PaymentResponse payment = paymentService.getPending(invoiceId);
+        return payment == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(payment);
+    }
+
 }
