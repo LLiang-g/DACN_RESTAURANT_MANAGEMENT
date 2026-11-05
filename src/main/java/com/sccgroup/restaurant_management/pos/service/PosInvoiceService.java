@@ -132,7 +132,7 @@ public class PosInvoiceService {
 
     @Transactional
     public void pay(Long invoiceId, PayRequest request) {
-        Invoice invoice = getOpenInvoiceOrThrow(invoiceId);
+        Invoice invoice = lockOpenInvoiceOrThrow(invoiceId);
         List<OrderItem> items = loadInvoiceItems(invoiceId);
         List<OrderCombo> combos = loadInvoiceCombos(invoiceId);
 
