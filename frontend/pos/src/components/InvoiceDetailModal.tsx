@@ -6,11 +6,16 @@ import PaymentPanel from './PaymentPanel';
 
 interface Props {
   invoiceId: number;
+  refreshVersion?: number;
   onClose: () => void;
   onChanged: () => void;
 }
 
-export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Props) {
+const statusLabels: Record<string, string> = {
+  PENDING: 'Chờ duyệt', CONFIRMED: 'Chờ bếp', COOKING: 'Đang nấu',
+  DONE: 'Đã xong', SERVED: 'Đã phục vụ', REJECTED: 'Đã hủy / Từ chối', RETURNED: 'Đã trả',
+};
+export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onClose, onChanged }: Props) {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState<PaymentMethod>('CASH');
@@ -36,8 +41,20 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
   };
 
   useEffect(() => {
-    loadInvoice();
-  }, [invoiceId]);
+    let active = true;
+    // Background refresh preserves payment and return forms while the invoice is open.
+    posApi.getInvoiceDetail(invoiceId)
+      .then((latest) => {
+        if (active) setInvoice(latest);
+      })
+      .catch((err) => {
+        if (active) setError(err?.response?.data?.message ?? 'Không tải được hóa đơn.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [invoiceId, refreshVersion]);
 
   // MỚI: hỏi server trạng thái giao dịch; nếu đã SUCCESS thì tải lại hóa đơn (lúc này là PAID)
   const syncPaymentStatus = async (txnRef: string) => {
@@ -220,7 +237,7 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
               {invoice.items.map((item) => (
                 <li key={`item-${item.orderItemId}`}>
                   <span>{item.foodName} x{item.quantity}</span>
-                  <span className={`item-status ${item.status.toLowerCase()}`}>{item.status}</span>
+                  <span className={`item-status ${item.status.toLowerCase()}`}>{statusLabels[item.status] ?? item.status}</span>
                   <span>{item.lineTotal.toLocaleString('vi-VN')}đ</span>
 
                   {item.status === 'DONE' && (
@@ -265,7 +282,7 @@ export default function InvoiceDetailModal({ invoiceId, onClose, onChanged }: Pr
                     {combo.items.map((ci) => (
                       <li key={ci.orderItemId}>
                         <span>— {ci.foodName} x{ci.quantity}</span>
-                        <span className={`item-status ${ci.status.toLowerCase()}`}>{ci.status}</span>
+                        <span className={`item-status ${ci.status.toLowerCase()}`}>{statusLabels[ci.status] ?? ci.status}</span>
 
                         {ci.status === 'DONE' && (
                           <button

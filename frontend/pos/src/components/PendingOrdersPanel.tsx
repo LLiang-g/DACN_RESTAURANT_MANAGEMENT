@@ -44,7 +44,7 @@ export default function PendingOrdersPanel({ orders, onActionDone }: Props) {
   };
 
   if (orders.length === 0) {
-    return <p>Không có đơn nào đang chờ duyệt.</p>;
+    return <div className="pos-empty-state"><span aria-hidden="true">✓</span><h3>Đã xử lý hết đơn chờ</h3><p>Đơn mới từ khách sẽ xuất hiện tại đây để bạn kiểm tra.</p></div>;
   }
 
   return (

@@ -30,7 +30,7 @@ export default function CallStaffPanel({ requests, onActionDone }: Props) {
   };
 
   if (requests.length === 0) {
-    return <p className="empty-state">Không có yêu cầu gọi nhân viên nào.</p>;
+    return <div className="pos-empty-state"><span aria-hidden="true">◉</span><h3>Chưa có yêu cầu hỗ trợ</h3><p>Khi khách gọi nhân viên, yêu cầu sẽ được hiển thị tại đây.</p></div>;
   }
 
   return (

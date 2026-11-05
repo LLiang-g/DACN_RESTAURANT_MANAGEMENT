@@ -17,6 +17,7 @@ import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTabl
 import com.sccgroup.restaurant_management.domain.repository.order.OrderComboRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemOptionRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
+import com.sccgroup.restaurant_management.kds.service.KdsEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +52,7 @@ public class CustomerInvoiceService {
     private final OrderComboRepository orderComboRepository;
     private final CallStaffRequestRepository callStaffRequestRepository;
     private final TableEventPublisher tableEventPublisher;
+    private final KdsEventPublisher kdsEventPublisher;
 
     public CustomerInvoiceService(RestaurantTableRepository tableRepository,
                                   InvoiceRepository invoiceRepository,
@@ -58,8 +60,10 @@ public class CustomerInvoiceService {
                                   OrderItemOptionRepository orderItemOptionRepository,
                                   OrderComboRepository orderComboRepository,
                                   CallStaffRequestRepository callStaffRequestRepository,
-                                  TableEventPublisher tableEventPublisher) {
+                                  TableEventPublisher tableEventPublisher,
+                                  KdsEventPublisher kdsEventPublisher) {
         this.tableEventPublisher = tableEventPublisher;
+        this.kdsEventPublisher = kdsEventPublisher;
         this.tableRepository = tableRepository;
         this.invoiceRepository = invoiceRepository;
         this.orderItemRepository = orderItemRepository;
@@ -223,10 +227,11 @@ public class CustomerInvoiceService {
         return getInvoice(tableId);
     }
 
-    /** Báo lễ tân (để họ không bối rối khi đơn biến mất) và làm mới màn hình khách của bàn. */
+    /** Báo lễ tân, khách và bếp tải lại dữ liệu sau khi khách hủy thành công. */
     private void notifyCancelled(Long tableId) {
         tableEventPublisher.publishPosEvent(TableEventPublisher.EVENT_ORDER_CANCELLED_BY_CUSTOMER, tableId);
         tableEventPublisher.publishTableChanged(tableId);
+        kdsEventPublisher.publishChanged();
     }
 
     /**

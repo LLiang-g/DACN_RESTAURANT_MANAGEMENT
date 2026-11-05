@@ -22,3 +22,4 @@ public class KitchenCookingController {
         return Map.of("id", item.getId(), "status", item.getStatus().name());
     }
 }
+

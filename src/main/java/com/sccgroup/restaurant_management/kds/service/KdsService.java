@@ -3,6 +3,8 @@ package com.sccgroup.restaurant_management.kds.service;
 import com.sccgroup.restaurant_management.admin.service.AdminEventPublisher;
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
+import com.sccgroup.restaurant_management.common.realtime.OrderItemStatusEvent;
+import com.sccgroup.restaurant_management.common.realtime.RealtimeEventPublisher;
 import com.sccgroup.restaurant_management.common.security.AppUserPrincipal;
 import com.sccgroup.restaurant_management.domain.entity.account.AccountType;
 import com.sccgroup.restaurant_management.domain.entity.account.ActivityLog;
@@ -45,6 +47,7 @@ public class KdsService {
     private final StockTransactionRepository stockTransactionRepository;
     private final ActivityLogRepository activityLogRepository;
     private final AdminEventPublisher adminEvents;
+    private final RealtimeEventPublisher realtimeEvents;
 
     public KdsService(OrderItemRepository orderItemRepository,
                       KdsStockRepository stockRepository,
@@ -52,7 +55,8 @@ public class KdsService {
                       KdsEventPublisher eventPublisher,
                       StockTransactionRepository stockTransactionRepository,
                       ActivityLogRepository activityLogRepository,
-                      AdminEventPublisher adminEvents) {
+                      AdminEventPublisher adminEvents,
+                      RealtimeEventPublisher realtimeEvents) {
         this.orderItemRepository = orderItemRepository;
         this.stockRepository = stockRepository;
         this.calculator = calculator;
@@ -60,6 +64,7 @@ public class KdsService {
         this.stockTransactionRepository = stockTransactionRepository;
         this.activityLogRepository = activityLogRepository;
         this.adminEvents = adminEvents;
+        this.realtimeEvents = realtimeEvents;
     }
 
     // ------------------------------------------------------------------ Lấy danh sách
@@ -140,6 +145,7 @@ public class KdsService {
         item.setStatus(OrderItemStatus.COOKING);
         item.setStartedCookingAt(now);
         log(principal, action, item, now);
+        publishTableStatus(item);
     }
 
     /**
@@ -201,6 +207,7 @@ public class KdsService {
         item.setStatus(OrderItemStatus.DONE);
         item.setDoneAt(now);
         log(principal, "FINISH_COOKING", item, now);
+        publishTableStatus(item);
 
         boolean lastOne = mine.stream().noneMatch(i ->
                 i.getStatus() == OrderItemStatus.CONFIRMED || i.getStatus() == OrderItemStatus.COOKING);
@@ -231,6 +238,14 @@ public class KdsService {
     }
 
     // ------------------------------------------------------------------ Dùng chung
+
+    private void publishTableStatus(OrderItem item) {
+        Long tableId = item.getOrder().getInvoice().getTable().getId();
+        realtimeEvents.publishAfterCommit(
+                "/topic/table/" + tableId,
+                new OrderItemStatusEvent(item.getId(), tableId, item.getStatus().name(), null)
+        );
+    }
 
     private Long requireStation(AppUserPrincipal principal) {
         if (principal.getStationId() == null) {

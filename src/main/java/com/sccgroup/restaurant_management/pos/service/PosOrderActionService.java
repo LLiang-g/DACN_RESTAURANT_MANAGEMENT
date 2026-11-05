@@ -42,10 +42,16 @@ public class PosOrderActionService {
         Long tableId = item.getOrder().getInvoice().getTable().getId();
 
         realtimeEventPublisher.publishAfterCommit(
+                "/topic/kds", java.util.Map.of("type", "CHANGED")
+        );
+        
+        // đang dư cái này hiện đã được bổ sung cái trên
+        realtimeEventPublisher.publishAfterCommit(
                 "/topic/kds/" + stationId,
                 new KdsNewItemEvent(item.getId(), stationId, item.getFood().getName(),
                         item.getQuantity(), item.getNote())
         );
+        
         realtimeEventPublisher.publishAfterCommit(
                 "/topic/table/" + tableId,
                 new OrderItemStatusEvent(item.getId(), tableId, "CONFIRMED", null)
