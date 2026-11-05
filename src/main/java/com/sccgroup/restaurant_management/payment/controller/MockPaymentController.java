@@ -25,6 +25,9 @@ public class MockPaymentController {
     public MockPaymentController(PaymentService paymentService,
                                  @Value("${payment.mock.webhook-secret}") String secret) {
         this.paymentService = paymentService;
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("Set MOCK_WEBHOOK_SECRET before enabling mock payments");
+        }
         this.secret = secret;
     }
 

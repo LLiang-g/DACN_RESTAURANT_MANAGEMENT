@@ -4,7 +4,7 @@ services:
     image: mysql:8.0
     container_name: restaurant_management_mysql
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in local .env}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-smart_pos_kds}
       TZ: Asia/Ho_Chi_Minh
       JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Ho_Chi_Minh
@@ -33,9 +33,22 @@ services:
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/${MYSQL_DATABASE:-smart_pos_kds}?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-123456}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in local .env}
       - SPRING_OUTPUT_ANSI_ENABLED=never
       - LOGGING_CHARSET_CONSOLE=UTF-8
+      - JWT_SECRET=${JWT_SECRET:?Set a Base64 JWT_SECRET in local .env}
+      - VNPAY_ENABLED=${VNPAY_ENABLED:-false}
+      - VNPAY_TMN_CODE=${VNPAY_TMN_CODE:-}
+      - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET:-}
+      - VNPAY_PAY_URL=${VNPAY_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:8080}
+      - PAYMENT_MOCK_ENABLED=${PAYMENT_MOCK_ENABLED:-false}
+      - MOCK_WEBHOOK_SECRET=${MOCK_WEBHOOK_SECRET:-}
+      - DEMO_ACCOUNTS_ENABLED=${DEMO_ACCOUNTS_ENABLED:-false}
+      - DEMO_ADMIN_PASSWORD=${DEMO_ADMIN_PASSWORD:-}
+      - DEMO_MANAGER_PASSWORD=${DEMO_MANAGER_PASSWORD:-}
+      - DEMO_KITCHEN_PASSWORD=${DEMO_KITCHEN_PASSWORD:-}
+      - SHOW_SQL=${SHOW_SQL:-false}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

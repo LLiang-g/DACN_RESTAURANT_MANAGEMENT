@@ -31,3 +31,7 @@ replay_pid*.log
 
 # Uploaded runtime images
 uploads/
+
+# Local environment variants.
+.env.*
+!.env.example

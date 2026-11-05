@@ -21,13 +21,18 @@ public class DemoAccountSeeder {
             StaffAccountRepository staffAccounts,
             KitchenAccountRepository kitchenAccounts,
             PasswordEncoder passwordEncoder,
-            @Value("${app.seed.demo-accounts.enabled:true}") boolean enabled,
-            @Value("${app.seed.demo-accounts.admin-password:Admin@123}") String adminPassword,
-            @Value("${app.seed.demo-accounts.manager-password:Manager@123}") String managerPassword) {
+            @Value("${app.seed.demo-accounts.enabled:false}") boolean enabled,
+            @Value("${app.seed.demo-accounts.admin-password:}") String adminPassword,
+            @Value("${app.seed.demo-accounts.manager-password:}") String managerPassword,
+            @Value("${app.seed.demo-accounts.kitchen-password:}") String kitchenPassword) {
         return args -> {
             if (!enabled) {
                 log.info("Demo account seeding is disabled.");
                 return;
+            }
+
+            if (adminPassword.isBlank() || managerPassword.isBlank() || kitchenPassword.isBlank()) {
+                throw new IllegalStateException("Set all DEMO_*_PASSWORD variables before enabling demo accounts");
             }
 
             seed(staffAccounts, passwordEncoder, "ADMIN", adminPassword, StaffRole.ADMIN);
@@ -40,9 +45,9 @@ public class DemoAccountSeeder {
 
             for (var k : kitchenAccounts.findAll()) {
                 if (k.getPasswordHash() != null && k.getPasswordHash().startsWith("$2b$12$DEMO_HASH_")) {
-                    k.setPasswordHash(passwordEncoder.encode("123456"));
+                    k.setPasswordHash(passwordEncoder.encode(kitchenPassword));
                     kitchenAccounts.save(k);
-                    log.info("Updated password for kitchen account '{}' to 123456.", k.getUsername());
+                    log.info("Updated placeholder password for kitchen account '{}'.", k.getUsername());
                 }
             }
         };
