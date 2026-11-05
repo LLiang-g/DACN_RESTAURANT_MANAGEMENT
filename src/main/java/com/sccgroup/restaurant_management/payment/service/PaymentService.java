@@ -1,6 +1,7 @@
 package com.sccgroup.restaurant_management.payment.service;
 
 import com.sccgroup.restaurant_management.common.exception.BusinessException;
+import com.sccgroup.restaurant_management.common.exception.ConflictException;
 import com.sccgroup.restaurant_management.common.exception.ResourceNotFoundException;
 import com.sccgroup.restaurant_management.domain.entity.billing.PaymentProviderType;
 import com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransaction;
@@ -46,9 +47,11 @@ public class PaymentService {
         }
         BigDecimal total = posInvoiceService.preparePayment(invoiceId); // khóa + kiểm tra
 
-        // Mỗi hóa đơn chỉ giữ một giao dịch đang chờ: các giao dịch cũ coi như hết hạn.
-        txRepository.findByInvoiceIdAndStatus(invoiceId, PaymentTransactionStatus.PENDING)
-                .forEach(t -> t.setStatus(PaymentTransactionStatus.EXPIRED));
+        // A new local QR does not invalidate a previously issued provider payment link.
+        if (!txRepository.findByInvoiceIdAndStatus(invoiceId, PaymentTransactionStatus.PENDING).isEmpty()) {
+            throw new ConflictException("PAYMENT_PENDING_EXISTS",
+                    "Hóa đơn còn giao dịch chờ. Vui lòng tiếp tục giao dịch hiện tại hoặc đối soát trước khi tạo mới.");
+        }
 
         String txnRef = "INV" + invoiceId + "T" + System.currentTimeMillis();
         PaymentTransaction tx = txRepository.save(
@@ -62,14 +65,28 @@ public class PaymentService {
     @Transactional
     public PaymentTransactionStatus applyResult(String txnRef, BigDecimal amount,
                                                 boolean success, String providerTxnNo) {
+        Long invoiceId = txRepository.findInvoiceIdByTxnRef(txnRef)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch"));
+        // Same order as create(): invoice first, then payment transaction.
+        invoiceRepository.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
         PaymentTransaction tx = txRepository.findByTxnRefForUpdate(txnRef)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch"));
 
-        if (tx.getStatus() != PaymentTransactionStatus.PENDING) {
-            return tx.getStatus(); // đã xử lý rồi (bị gọi lại): không làm gì thêm
-        }
-        if (tx.getAmount().compareTo(amount) != 0) {
+        if (amount == null || tx.getAmount().compareTo(amount) != 0) {
             throw new BusinessException("PAYMENT_AMOUNT_MISMATCH", "Số tiền không khớp giao dịch");
+        }
+        if (tx.getStatus() == PaymentTransactionStatus.SUCCESS) {
+            return tx.getStatus(); // Duplicate result: never close or charge the invoice again.
+        }
+        boolean waiting = tx.getStatus() == PaymentTransactionStatus.PENDING;
+        boolean locallyExpiredSuccess = tx.getStatus() == PaymentTransactionStatus.EXPIRED && success;
+        if (!waiting && !locallyExpiredSuccess) {
+            if (success) {
+                throw new ConflictException("PAYMENT_RESULT_CONFLICT",
+                        "Giao dịch có kết quả thành công trái với trạng thái đã ghi nhận, cần đối soát.");
+            }
+            return tx.getStatus();
         }
         if (!success) {
             tx.setStatus(PaymentTransactionStatus.FAILED);
@@ -92,11 +109,14 @@ public class PaymentService {
 
     @Transactional
     public PaymentTransactionStatus mockConfirm(String txnRef) {
-        PaymentTransaction tx = txRepository.findByTxnRef(txnRef)
+        // Read scalar values only, so applyResult locks and loads fresh transaction state.
+        PaymentProviderType provider = txRepository.findProviderByTxnRef(txnRef)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch"));
-        if (tx.getProvider() != PaymentProviderType.MOCK) {
+        if (provider != PaymentProviderType.MOCK) {
             throw new BusinessException("NOT_MOCK_TRANSACTION", "Chỉ giả lập được giao dịch MOCK");
         }
-        return applyResult(txnRef, tx.getAmount(), true, "MOCK-" + System.currentTimeMillis());
+        BigDecimal amount = txRepository.findAmountByTxnRef(txnRef)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch"));
+        return applyResult(txnRef, amount, true, "MOCK-" + System.currentTimeMillis());
     }
 }

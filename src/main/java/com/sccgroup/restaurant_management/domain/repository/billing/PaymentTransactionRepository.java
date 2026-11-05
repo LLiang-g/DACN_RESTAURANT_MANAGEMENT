@@ -1,6 +1,8 @@
 package com.sccgroup.restaurant_management.domain.repository.billing;
 
 import com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransaction;
+import com.sccgroup.restaurant_management.domain.entity.billing.PaymentProviderType;
+import java.math.BigDecimal;
 import com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransactionStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,6 +21,15 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     Optional<PaymentTransaction> findByTxnRefForUpdate(@Param("txnRef") String txnRef);
 
     Optional<PaymentTransaction> findByTxnRef(String txnRef);
+
+    @Query("select t.invoice.id from PaymentTransaction t where t.txnRef = :txnRef")
+    Optional<Long> findInvoiceIdByTxnRef(@Param("txnRef") String txnRef);
+
+    @Query("select t.provider from PaymentTransaction t where t.txnRef = :txnRef")
+    Optional<PaymentProviderType> findProviderByTxnRef(@Param("txnRef") String txnRef);
+
+    @Query("select t.amount from PaymentTransaction t where t.txnRef = :txnRef")
+    Optional<BigDecimal> findAmountByTxnRef(@Param("txnRef") String txnRef);
 
     List<PaymentTransaction> findByInvoiceIdAndStatus(Long invoiceId, PaymentTransactionStatus status);
 }
