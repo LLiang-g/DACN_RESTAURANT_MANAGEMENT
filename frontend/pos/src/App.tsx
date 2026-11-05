@@ -1,22 +1,39 @@
-import { useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import LoginPage from './pages/LoginPage';
 import PosDashboard from './pages/PosDashboard';
+import { setUnauthorizedHandler } from './api/client';
 import './App.css';
 
 function App() {
-  // Khởi tạo state bằng hàm (lazy initializer) để chỉ đọc localStorage
-  // 1 lần duy nhất lúc mount, không đọc lại ở mỗi lần re-render.
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('accessToken'));
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('username');
+    setSessionExpired(false);
+    setIsLoggedIn(false);
+  }, []);
+
+  // Register before child passive effects start fetching protected data.
+  useLayoutEffect(() => setUnauthorizedHandler(() => {
+    setSessionExpired(true);
+    setIsLoggedIn(false);
+  }), []);
 
   if (!isLoggedIn) {
-    return <LoginPage onLoginSuccess={() => setIsLoggedIn(true)} />;
+    return (
+      <>
+        {sessionExpired && (
+          <p role="alert">Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.</p>
+        )}
+        <LoginPage onLoginSuccess={() => {
+          setSessionExpired(false);
+          setIsLoggedIn(true);
+        }} />
+      </>
+    );
   }
-
-  const handleLogout = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('username');
-  setIsLoggedIn(false);
-};
 
   return <PosDashboard onLogout={handleLogout} />;
 }
