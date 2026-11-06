@@ -110,6 +110,7 @@ export interface InvoiceCombo {
   quantity: number
   comboPrice: number
   active: boolean
+  lineTotal: number
 }
 
 export interface InvoiceOrder {

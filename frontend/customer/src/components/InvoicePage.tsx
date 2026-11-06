@@ -126,7 +126,7 @@ export default function InvoicePage({ tableId }: { tableId: number }) {
           {invoiceOrder.combos.map((invoiceCombo) => (
             <div key={invoiceCombo.id} className={"customer-cartline" + (invoiceCombo.active ? "" : " off")}>
               <div className="customer-card-body"><div className="customer-card-name">{invoiceCombo.quantity} × {invoiceCombo.comboName}</div></div>
-              <div>{formatVnd(invoiceCombo.comboPrice * invoiceCombo.quantity)}</div>
+              <div>{formatVnd(invoiceCombo.lineTotal)}</div>
             </div>
           ))}
         </div>

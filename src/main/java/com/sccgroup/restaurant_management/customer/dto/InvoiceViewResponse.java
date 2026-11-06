@@ -37,5 +37,6 @@ public record InvoiceViewResponse(
             List<String> optionNames,
             boolean cancellable) {}
 
-    public record ComboDto(Long id, Long comboId, String comboName, Integer quantity, BigDecimal comboPrice, boolean active) {}
+    /** lineTotal is the adjusted whole-combo amount including active option surcharges. */
+    public record ComboDto(Long id, Long comboId, String comboName, Integer quantity, BigDecimal comboPrice, boolean active, BigDecimal lineTotal) {}
 }

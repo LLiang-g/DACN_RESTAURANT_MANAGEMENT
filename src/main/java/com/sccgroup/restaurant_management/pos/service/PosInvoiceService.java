@@ -20,6 +20,7 @@ import com.sccgroup.restaurant_management.domain.repository.order.OrderComboRepo
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderRepository;
 import com.sccgroup.restaurant_management.pos.dto.*;
+import com.sccgroup.restaurant_management.domain.service.InvoiceTotalCalculator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,7 +87,8 @@ public class PosInvoiceService {
                 invoice.getAmountReceived(),
                 invoice.getChangeAmount(),
                 invoice.getBankTransactionRef(),
-                invoice.getPaidAt()
+                invoice.getPaidAt(),
+                receivedAmount(invoice)
         );
     }
 
@@ -226,6 +228,22 @@ public class PosInvoiceService {
         return invoice;
     }
 
+    private BigDecimal receivedAmount(Invoice invoice) {
+        if (invoice.getStatus() != InvoiceStatus.PAID) return null;
+        if (invoice.getPaymentMethod() == PaymentMethod.CASH) {
+            if (invoice.getAmountReceived() == null || invoice.getChangeAmount() == null) return null;
+            return invoice.getAmountReceived().subtract(invoice.getChangeAmount());
+        }
+        if (invoice.getPaymentMethod() == PaymentMethod.BANK_TRANSFER && invoice.getBankTransactionRef() != null) {
+            return paymentTransactionRepository.findByTxnRef(invoice.getBankTransactionRef())
+                    .filter(tx -> tx.getStatus() == PaymentTransactionStatus.SUCCESS
+                            && tx.getInvoice().getId().equals(invoice.getId()))
+                    .map(com.sccgroup.restaurant_management.domain.entity.billing.PaymentTransaction::getAmount)
+                    .orElse(null);
+        }
+        return null;
+    }
+
     private List<OrderItem> loadInvoiceItems(Long invoiceId) {
         List<Order> orders = orderRepository.findByInvoiceId(invoiceId);
         if (orders.isEmpty()) return List.of();
@@ -250,54 +268,14 @@ public class PosInvoiceService {
         List<InvoiceComboItemResponse> childDtos = children.stream()
                 .map(oi -> new InvoiceComboItemResponse(oi.getId(), oi.getFood().getName(), oi.getQuantity(), oi.getStatus().name()))
                 .toList();
+        var amounts = InvoiceTotalCalculator.comboPreviewAmounts(combo, children);
         return new InvoiceComboResponse(combo.getId(), combo.getCombo().getName(), combo.getQuantity(),
-                combo.getComboPrice(), comboLineTotal(combo, children), childDtos);
+                combo.getComboPrice(), amounts.lineTotal(), childDtos,
+                amounts.baseTotal(), amounts.removedDeduction(), amounts.optionSurcharge());
     }
 
     private BigDecimal calculateTotal(List<OrderItem> items, List<OrderCombo> combos) {
-        Map<Long, List<OrderItem>> childrenByComboId = groupByComboId(items);
-
-        BigDecimal itemTotal = items.stream()
-                .filter(oi -> oi.getOrderCombo() == null)
-                .filter(this::isBillable)
-                .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal comboTotal = combos.stream()
-                .filter(combo -> isComboBillable(childrenByComboId.getOrDefault(combo.getId(), List.of())))
-                .map(combo -> comboLineTotal(combo, childrenByComboId.getOrDefault(combo.getId(), List.of())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        return itemTotal.add(comboTotal);
+        return InvoiceTotalCalculator.confirmedTotal(items, combos);
     }
 
-    private boolean isComboBillable(List<OrderItem> children) {
-        return !children.isEmpty() && children.stream().noneMatch(oi -> oi.getStatus() == OrderItemStatus.PENDING);
-    }
-
-    private BigDecimal comboLineTotal(OrderCombo combo, List<OrderItem> children) {
-        BigDecimal base = combo.getComboPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
-
-        // Món bị hủy trong combo: trừ giá bán lẻ hiện tại của món đó ra khỏi giá combo
-        BigDecimal rejectedDeduction = children.stream()
-                .filter(oi -> oi.getStatus() == OrderItemStatus.REJECTED || oi.getStatus() == OrderItemStatus.RETURNED)
-                .map(oi -> oi.getFood().getPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Phụ thu option của các món còn billable (không tính phụ thu của món đã bị hủy)
-        BigDecimal surcharge = children.stream()
-                .filter(this::isBillable)
-                .map(oi -> oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal adjustedBase = base.subtract(rejectedDeduction).max(BigDecimal.ZERO);
-        return adjustedBase.add(surcharge);
-    }
-
-    private boolean isBillable(OrderItem item) {
-        return switch (item.getStatus()) {
-            case CONFIRMED, COOKING, DONE, SERVED -> true;
-            case PENDING, REJECTED, RETURNED -> false;
-        };
-    }
 }

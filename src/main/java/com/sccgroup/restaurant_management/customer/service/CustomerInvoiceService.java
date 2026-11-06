@@ -12,6 +12,7 @@ import com.sccgroup.restaurant_management.domain.entity.order.OrderItemOption;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
 import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
+import com.sccgroup.restaurant_management.domain.service.InvoiceTotalCalculator;
 import com.sccgroup.restaurant_management.domain.repository.floor.CallStaffRequestRepository;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderComboRepository;
@@ -109,7 +110,7 @@ public class CustomerInvoiceService {
 
         Map<Long, List<InvoiceViewResponse.ItemDto>> itemsByOrder = new LinkedHashMap<>();
         Map<Long, java.time.LocalDateTime> orderTimes = new HashMap<>();
-        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal total = InvoiceTotalCalculator.previewTotal(items, combos);
         for (OrderItem orderItem : items) {
             Long orderId = orderItem.getOrder().getId();
             orderTimes.put(orderId, orderItem.getOrder().getCreatedAt());
@@ -122,9 +123,6 @@ public class CustomerInvoiceService {
                     orderItem.getOrderCombo() == null ? null : orderItem.getOrderCombo().getId(),
                     optionNames.getOrDefault(orderItem.getId(), List.of()),
                     CANCELLABLE.contains(orderItem.getStatus())));
-            if (!INACTIVE.contains(orderItem.getStatus())) {
-                total = total.add(orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
-            }
         }
 
         Map<Long, List<InvoiceViewResponse.ComboDto>> combosByOrder = new HashMap<>();
@@ -132,10 +130,11 @@ public class CustomerInvoiceService {
             boolean active = activeComboIds.contains(orderCombo.getId());
             combosByOrder.computeIfAbsent(orderCombo.getOrder().getId(), key -> new ArrayList<>()).add(
                     new InvoiceViewResponse.ComboDto(orderCombo.getId(), orderCombo.getCombo().getId(), orderCombo.getCombo().getName(),
-                            orderCombo.getQuantity(), orderCombo.getComboPrice(), active));
-            if (active) {
-                total = total.add(orderCombo.getComboPrice().multiply(BigDecimal.valueOf(orderCombo.getQuantity())));
-            }
+                            orderCombo.getQuantity(), orderCombo.getComboPrice(), active,
+                            InvoiceTotalCalculator.comboPreviewTotal(orderCombo, items.stream()
+                                    .filter(item -> item.getOrderCombo() != null
+                                            && item.getOrderCombo().getId().equals(orderCombo.getId()))
+                                    .toList())));
         }
 
         List<InvoiceViewResponse.OrderDto> orders = new ArrayList<>();

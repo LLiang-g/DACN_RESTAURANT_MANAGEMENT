@@ -48,6 +48,9 @@ export interface InvoiceCombo {
   comboPrice: number;
   lineTotal: number;
   items: InvoiceComboItem[];
+  baseTotal: number;
+  removedDeduction: number;
+  optionSurcharge: number;
 }
 
 export interface InvoiceDetail {
@@ -64,6 +67,7 @@ export interface InvoiceDetail {
   changeAmount: number | null;
   bankTransactionRef: string | null;
   paidAt: string | null;
+  paidAmount: number | null;
 }
 
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';

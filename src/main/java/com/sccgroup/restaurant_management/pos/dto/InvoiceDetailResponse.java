@@ -17,5 +17,6 @@ public record InvoiceDetailResponse(
         BigDecimal amountReceived,
         BigDecimal changeAmount,
         String bankTransactionRef,
-        LocalDateTime paidAt
+        LocalDateTime paidAt,
+        BigDecimal paidAmount
 ) {}

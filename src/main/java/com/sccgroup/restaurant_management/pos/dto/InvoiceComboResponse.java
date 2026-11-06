@@ -9,5 +9,8 @@ public record InvoiceComboResponse(
         Integer quantity,
         BigDecimal comboPrice,
         BigDecimal lineTotal,
-        List<InvoiceComboItemResponse> items
+        List<InvoiceComboItemResponse> items,
+        BigDecimal baseTotal,
+        BigDecimal removedDeduction,
+        BigDecimal optionSurcharge
 ) {}

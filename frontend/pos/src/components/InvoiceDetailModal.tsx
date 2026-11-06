@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { InvoiceDetail, PaymentMethod, PaymentResponse,PaymentProviderType } from '../types/pos';
 import { posApi } from '../api/posApi';
-import InvoiceReceipt from './InvoiceReceipt';
+import InvoiceReceipt, { receiptError } from './InvoiceReceipt';
+import { flushSync } from 'react-dom';
 import PaymentPanel from './PaymentPanel';
 
 interface Props {
@@ -18,6 +19,7 @@ const statusLabels: Record<string, string> = {
 export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onClose, onChanged }: Props) {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [printing, setPrinting] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const [provider, setProvider] = useState<PaymentProviderType>('VNPAY');
   const [amountReceived, setAmountReceived] = useState('');
@@ -98,6 +100,20 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
     return () => clearInterval(timer);
   }, [payment?.txnRef, payment?.status]);
 
+  const handlePrint = async () => {
+    if (printing) return;
+    setPrinting(true);
+    setError(null);
+    try {
+      const latest = await posApi.getInvoiceDetail(invoiceId);
+      flushSync(() => setInvoice(latest));
+      const problem = receiptError(latest);
+      if (problem) { setError(problem); return; }
+      window.print();
+    } catch { setError('Không tải được dữ liệu mới nhất để in. Vui lòng thử lại.'); }
+    finally { setPrinting(false); }
+  };
+
   const handlePay = async () => {
     setError(null);
     setSubmitting(true);
@@ -108,7 +124,8 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
         amountReceived: Number(amountReceived),
       });
       onChanged();
-      onClose();
+      try { await loadInvoice(); }
+      catch { setError('Đã thanh toán thành công nhưng chưa tải được hóa đơn mới. Hãy tải lại trước khi in; không thu tiền lần nữa.'); }
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Thanh toán thất bại.');
     } finally {
@@ -247,7 +264,7 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
   const waitingPayment = !paymentReady || paymentBusy || !!payment && ['PENDING', 'RECONCILING', 'EXPIRED'].includes(payment.status);
 
   return (
-    <div className="modal-backdrop" onClick={() => { if (!paymentBusy) onClose(); }}>
+    <div className="modal-backdrop" onClick={() => { if (!paymentBusy && !printing) onClose(); }}>
       <div className="modal invoice-modal" onClick={(e) => e.stopPropagation()}>
         {loading && <p>Đang tải...</p>}
 
@@ -427,11 +444,11 @@ export default function InvoiceDetailModal({ invoiceId, refreshVersion = 0, onCl
               <button className="free-table-btn" onClick={handleFreeTable} disabled={submitting || waitingPayment}>
                 Đưa bàn về Trống
               </button>
-              <button onClick={onClose} disabled={submitting || paymentBusy}>Đóng</button>
+              <button onClick={onClose} disabled={submitting || paymentBusy || printing}>Đóng</button>
 
-              <button className="print-btn" onClick={() => window.print()} disabled={submitting}>
-                In hóa đơn
-              </button>
+              {invoice.status !== 'CANCELLED' && <button className="print-btn" onClick={handlePrint} disabled={submitting || paymentBusy || printing || processingItemId !== null || hasPending} title={hasPending ? 'Duyệt hoặc từ chối hết món trước khi in' : undefined}>
+                {printing ? 'Đang chuẩn bị in…' : invoice.status === 'PAID' ? 'In hóa đơn' : 'In phiếu tạm tính'}
+              </button>}
 
               {invoice.status === 'OPEN' && (
                 <>
