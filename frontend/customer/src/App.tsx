@@ -6,6 +6,7 @@ import {
 import CategoryTabs from "./components/CategoryTabs"
 import InvoicePage from "./components/InvoicePage"
 import ScrollToTopButton from "./components/ScrollToTopButton"
+import TodayFoodChat from "./components/TodayFoodChat"
 import { ComboModal, FoodModal, Sheet } from "./components/Modals"
 import type { Menu, MenuCombo, MenuFood, OrderResult, TableInfo } from "./types/types"
 import FoodImage from "./components/FoodImage"
@@ -147,6 +148,7 @@ export default function App() {
         <p className="customer-order-note">Đơn sẽ được lễ tân xác nhận trước khi bếp chế biến.</p>
       </Sheet>}
       {result && <Sheet title="Nhà hàng đã nhận đơn" onClose={() => setResult(null)}><div className="customer-success-mark" aria-hidden="true">✓</div><h4 className="customer-success-title">Cảm ơn bạn đã gọi món!</h4><p className="customer-sheet-intro">Đơn #{result.orderId} đang chờ lễ tân xác nhận. Bạn có thể theo dõi trạng thái tại mục Đơn đã gọi.</p><div className="customer-success-total"><span>Tạm tính đơn vừa gửi</span><strong>{formatVnd(result.totalAmount)}</strong></div><div className="customer-sheet-foot"><button className="customer-secondary" onClick={() => { setResult(null); setInvoiceOpen(true); window.scrollTo(0,0) }}>Theo dõi đơn</button><button className="customer-primary" onClick={() => setResult(null)}>Gọi thêm món</button></div></Sheet>}
+      <TodayFoodChat />
       <ScrollToTopButton />
     </div>
   )
