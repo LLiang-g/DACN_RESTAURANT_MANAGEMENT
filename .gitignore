@@ -35,3 +35,7 @@ uploads/
 # Local environment variants.
 .env.*
 !.env.example
+
+
+/proposed/
+/report-assets/
