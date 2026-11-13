@@ -12,16 +12,18 @@ import com.sccgroup.restaurant_management.domain.entity.order.OrderItemOption;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.repository.billing.InvoiceRepository;
 import com.sccgroup.restaurant_management.domain.service.TableEventPublisher;
-import com.sccgroup.restaurant_management.domain.service.InvoiceTotalCalculator;
 import com.sccgroup.restaurant_management.domain.repository.floor.CallStaffRequestRepository;
 import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderComboRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemOptionRepository;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
 import com.sccgroup.restaurant_management.kds.service.KdsEventPublisher;
+import com.sccgroup.restaurant_management.payment.service.InvoiceMutationGuard;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sccgroup.restaurant_management.domain.service.InvoiceTotalCalculator;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -54,6 +56,7 @@ public class CustomerInvoiceService {
     private final CallStaffRequestRepository callStaffRequestRepository;
     private final TableEventPublisher tableEventPublisher;
     private final KdsEventPublisher kdsEventPublisher;
+    private final InvoiceMutationGuard invoiceMutationGuard;
 
     public CustomerInvoiceService(RestaurantTableRepository tableRepository,
                                   InvoiceRepository invoiceRepository,
@@ -62,7 +65,9 @@ public class CustomerInvoiceService {
                                   OrderComboRepository orderComboRepository,
                                   CallStaffRequestRepository callStaffRequestRepository,
                                   TableEventPublisher tableEventPublisher,
-                                  KdsEventPublisher kdsEventPublisher) {
+                                  KdsEventPublisher kdsEventPublisher,
+                                  InvoiceMutationGuard invoiceMutationGuard) {
+        this.invoiceMutationGuard = invoiceMutationGuard;
         this.tableEventPublisher = tableEventPublisher;
         this.kdsEventPublisher = kdsEventPublisher;
         this.tableRepository = tableRepository;
@@ -149,7 +154,7 @@ public class CustomerInvoiceService {
      * Món thuộc combo thì hủy cả combo (các món con còn hiệu lực), vì giá combo không chia lẻ được.
      * Trả về hóa đơn mới nhất để giao diện cập nhật.
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public InvoiceViewResponse cancelItem(Long tableId, Long orderItemId) {
         Long itemTableId = orderItemRepository.findTableIdByItemId(orderItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với ID " + orderItemId));
@@ -157,11 +162,15 @@ public class CustomerInvoiceService {
             throw new BusinessException("Món này không thuộc bàn của bạn");
         }
 
-        // Thứ tự khóa luôn là: bàn -> món (cùng thứ tự với lúc gửi đơn, tránh deadlock)
+        // Lock order: table -> invoice -> items (ascending ID).
         tableRepository.findByIdForUpdate(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID " + tableId));
 
+        Long invoiceId = orderItemRepository.findInvoiceIdByItemId(orderItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với ID " + orderItemId));
+        invoiceMutationGuard.lockForMutation(invoiceId);
         List<OrderItem> locked = orderItemRepository.findAllByIdForUpdate(List.of(orderItemId));
+        if (locked.isEmpty()) throw new ResourceNotFoundException("Không tìm thấy món với ID " + orderItemId);
         OrderItem item = locked.get(0);
         Invoice invoice = item.getOrder().getInvoice();
         if (invoice.getStatus() != InvoiceStatus.OPEN) {
@@ -193,7 +202,7 @@ public class CustomerInvoiceService {
      * Khách hủy cả một Order (đặc tả: hủy được bất cứ lúc nào miễn món chưa "đang nấu").
      * Chỉ hủy được khi MỌI món còn hiệu lực của Order đều là PENDING/CONFIRMED; nếu có món đã nấu thì từ chối cả đơn.
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public InvoiceViewResponse cancelOrder(Long tableId, Long orderId) {
         List<Long> tableIds = orderItemRepository.findTableIdsByOrderId(orderId);
         if (tableIds.isEmpty()) {
@@ -205,7 +214,11 @@ public class CustomerInvoiceService {
         tableRepository.findByIdForUpdate(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với ID " + tableId));
 
+        Long invoiceId = orderItemRepository.findInvoiceIdByOrderId(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn với ID " + orderId));
+        invoiceMutationGuard.lockForMutation(invoiceId);
         List<OrderItem> items = orderItemRepository.findByOrderIdForUpdate(orderId);
+        if (items.isEmpty()) throw new ResourceNotFoundException("Không tìm thấy món trong đơn " + orderId);
         if (items.get(0).getOrder().getInvoice().getStatus() != InvoiceStatus.OPEN) {
             throw new BusinessException("Hóa đơn đã thanh toán, không thể hủy đơn");
         }

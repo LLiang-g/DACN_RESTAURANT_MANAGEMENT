@@ -26,12 +26,14 @@ import java.util.stream.Collectors;
 public class PaymentService {
 
     private final PosInvoiceService posInvoiceService;
+    private final CollectionService collection;
     private final InvoiceRepository invoiceRepository;
     private final PaymentTransactionRepository txRepository;
     private final Map<PaymentProviderType, PaymentProvider> providers;
 
     public PaymentService(PosInvoiceService posInvoiceService, InvoiceRepository invoiceRepository,
-                          PaymentTransactionRepository txRepository, List<PaymentProvider> providerList) {
+                          PaymentTransactionRepository txRepository, List<PaymentProvider> providerList, CollectionService collection) {
+        this.collection = collection;
         this.posInvoiceService = posInvoiceService;
         this.invoiceRepository = invoiceRepository;
         this.txRepository = txRepository;
@@ -39,27 +41,27 @@ public class PaymentService {
                 .collect(Collectors.toMap(PaymentProvider::type, Function.identity()));
     }
 
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public PaymentResponse create(Long invoiceId, PaymentProviderType type, String clientIp) {
         PaymentProvider provider = providers.get(type);
         if (provider == null) {
             throw new BusinessException("PAYMENT_PROVIDER_UNSUPPORTED", "Phương thức thanh toán không được hỗ trợ");
         }
-        BigDecimal total = posInvoiceService.preparePayment(invoiceId); // khóa + kiểm tra
+        BigDecimal total = collection.prepare(invoiceRepository.findByIdForUpdate(invoiceId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn")));
 
         var existing = txRepository.findByInvoiceIdAndStatusIn(invoiceId, com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES);
-        if (!existing.isEmpty()) {
-            PaymentTransaction pending = latestPending(existing);
+        if (!existing.isEmpty() && existing.stream().anyMatch(tx -> tx.getStatus() == PaymentTransactionStatus.PENDING && (tx.getExpiresAt() == null || tx.getExpiresAt().isAfter(LocalDateTime.now())))) {
+            PaymentTransaction pending = latestPending(existing.stream().filter(tx -> tx.getStatus() == PaymentTransactionStatus.PENDING && (tx.getExpiresAt() == null || tx.getExpiresAt().isAfter(LocalDateTime.now()))).toList());
             if (pending.getProvider() != type) {
                 throw new ConflictException("PAYMENT_PENDING_EXISTS", "Hóa đơn đang chờ thanh toán bằng phương thức khác. Hãy mở lại giao dịch đang chờ.");
             }
             if (type == PaymentProviderType.VNPAY && pending.getPayUrl() == null) {
                 throw new ConflictException("PAYMENT_RESUME_UNAVAILABLE", "Giao dịch cũ chưa lưu link QR. Cần kiểm tra và đối soát giao dịch; không tạo link thay thế.");
             }
-            return toResponse(pending);
+            if (pending.getAmount().compareTo(total)==0) return toResponse(pending);
         }
 
-        String txnRef = "INV" + invoiceId + "T" + System.currentTimeMillis();
+        String txnRef = "INV" + invoiceId + "T" + java.util.UUID.randomUUID().toString().replace("-", "");
         PaymentTransaction tx = txRepository.save(
                 new PaymentTransaction(invoiceRepository.getReferenceById(invoiceId), type, txnRef, total));
 
@@ -68,8 +70,20 @@ public class PaymentService {
         return toResponse(tx);
     }
 
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public PaymentResponse replace(Long invoiceId,String previousRef,String clientIp) {
+        var invoice=invoiceRepository.findByIdForUpdate(invoiceId).orElseThrow(()->new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        BigDecimal due=collection.prepare(invoice);
+        var old=txRepository.findByTxnRefForUpdate(previousRef).orElseThrow(()->new ResourceNotFoundException("Không tìm thấy QR cũ"));
+        if(!old.getInvoice().getId().equals(invoiceId))throw new ConflictException("PAYMENT_INVOICE_MISMATCH","QR không thuộc hóa đơn");
+        var newer=txRepository.findByInvoiceIdOrderByIdDesc(invoiceId).stream().filter(x->x.getId()>old.getId()).findFirst();
+        if(newer.isPresent())return toResponse(newer.get());
+        if(old.getAmount().compareTo(due)==0 && (old.getExpiresAt()==null||old.getExpiresAt().isAfter(LocalDateTime.now())))throw new ConflictException("PAYMENT_NOT_EXPIRED","QR chưa hết hạn; tiếp tục dùng mã hiện tại");
+        return create(invoiceId,old.getProvider(),clientIp);
+    }
+
     /** Dùng chung cho webhook giả lập và IPN VNPay sau này. Idempotent. */
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public PaymentTransactionStatus applyResult(String txnRef, BigDecimal amount,
                                                 boolean success, String providerTxnNo) {
         Long invoiceId = txRepository.findInvoiceIdByTxnRef(txnRef)
@@ -88,7 +102,7 @@ public class PaymentService {
         }
         boolean waiting = tx.getStatus() == PaymentTransactionStatus.PENDING
                 || tx.getStatus() == PaymentTransactionStatus.RECONCILING;
-        boolean locallyExpiredSuccess = tx.getStatus() == PaymentTransactionStatus.EXPIRED && success;
+        boolean locallyExpiredSuccess = success && (tx.getStatus() == PaymentTransactionStatus.EXPIRED || tx.getStatus() == PaymentTransactionStatus.FAILED);
         if (!waiting && !locallyExpiredSuccess) {
             if (success) {
                 throw new ConflictException("PAYMENT_RESULT_CONFLICT",
@@ -101,7 +115,7 @@ public class PaymentService {
             return tx.getStatus();
         }
 
-        posInvoiceService.markPaidOnline(tx.getInvoice().getId(), tx.getTxnRef(), tx.getAmount());
+        collection.providerSuccess(tx, providerTxnNo);
         tx.setStatus(PaymentTransactionStatus.SUCCESS);
         tx.setProviderTxnNo(providerTxnNo);
         tx.setPaidAt(LocalDateTime.now());
@@ -116,13 +130,17 @@ public class PaymentService {
     }
 
     /** Recover the persisted pending link without initiating a new provider transaction. */
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public PaymentResponse getPending(Long invoiceId) {
         invoiceRepository.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
+        if (invoiceRepository.findStatusById(invoiceId).orElse(null) != com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus.OPEN) return null;
         var pending = txRepository.findByInvoiceIdAndStatusIn(invoiceId, com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES);
         return pending.isEmpty() ? null : toResponse(latestPending(pending));
     }
+
+    @Transactional(readOnly=true)
+    public List<PaymentResponse> history(Long invoiceId){return txRepository.findByInvoiceIdOrderByIdDesc(invoiceId).stream().map(this::toResponse).toList();}
 
     private PaymentTransaction latestPending(List<PaymentTransaction> pending) {
         return pending.stream().max(java.util.Comparator.comparing(PaymentTransaction::getId)).orElseThrow();
@@ -132,10 +150,10 @@ public class PaymentService {
         String expiry = tx.getExpiresAt() == null ? null : tx.getExpiresAt()
                 .atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime().toString();
         return new PaymentResponse(tx.getTxnRef(), tx.getProvider(), tx.getAmount(), tx.getStatus(),
-                tx.getStatus() == PaymentTransactionStatus.PENDING ? tx.getPayUrl() : null, expiry);
+                tx.getStatus() == PaymentTransactionStatus.PENDING && (tx.getExpiresAt() == null || tx.getExpiresAt().isAfter(LocalDateTime.now())) && tx.getInvoice().getStatus() == com.sccgroup.restaurant_management.domain.entity.billing.InvoiceStatus.OPEN && tx.getAmount().compareTo(collection.summary(tx.getInvoice().getId()).remaining())==0 ? tx.getPayUrl() : null, expiry);
     }
 
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public PaymentTransactionStatus mockConfirm(String txnRef) {
         // Read scalar values only, so applyResult locks and loads fresh transaction state.
         PaymentProviderType provider = txRepository.findProviderByTxnRef(txnRef)

@@ -18,5 +18,6 @@ public record InvoiceDetailResponse(
         BigDecimal changeAmount,
         String bankTransactionRef,
         LocalDateTime paidAt,
-        BigDecimal paidAmount
+        BigDecimal paidAmount,
+        com.sccgroup.restaurant_management.payment.service.CollectionService.Summary collection
 ) {}

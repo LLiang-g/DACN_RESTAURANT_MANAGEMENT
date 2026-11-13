@@ -17,6 +17,16 @@ import java.util.Optional;
 
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
+    // Scalar lookups must precede invoice/item entity loading in mutation paths.
+    @Query("select oi.order.invoice.id from OrderItem oi where oi.id = :id")
+    Optional<Long> findInvoiceIdByItemId(@Param("id") Long id);
+
+    @Query("select o.invoice.id from Order o where o.id = :orderId")
+    Optional<Long> findInvoiceIdByOrderId(@Param("orderId") Long orderId);
+
+    @Query("select oi.id from OrderItem oi where oi.order.invoice.id = :invoiceId order by oi.id")
+    List<Long> findIdsByInvoiceId(@Param("invoiceId") Long invoiceId);
+
     /** Mọi món của một hóa đơn, theo thứ tự thời gian gửi đơn. */
     @Query("select oi from OrderItem oi join fetch oi.food join fetch oi.order o where o.invoice.id = :invoiceId order by o.createdAt, oi.id")
     List<OrderItem> findByInvoiceId(@Param("invoiceId") Long invoiceId);
@@ -31,7 +41,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
     /** Đọc + khóa mọi món của một Order (SELECT ... FOR UPDATE). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select oi from OrderItem oi where oi.order.id = :orderId")
+    @Query("select oi from OrderItem oi where oi.order.id = :orderId order by oi.id")
     List<OrderItem> findByOrderIdForUpdate(@Param("orderId") Long orderId);
 
     /** Id các món cùng một combo trong đơn. */
@@ -40,7 +50,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
     /** Đọc + khóa dòng món (SELECT ... FOR UPDATE) để không đua với bếp bấm "Nấu". */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select oi from OrderItem oi where oi.id in :ids")
+    @Query("select oi from OrderItem oi where oi.id in :ids order by oi.id")
     List<OrderItem> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
 
     /** Các món theo trạng thái (kèm món ăn) — dùng tính lượng nguyên liệu đang được giữ chỗ. */

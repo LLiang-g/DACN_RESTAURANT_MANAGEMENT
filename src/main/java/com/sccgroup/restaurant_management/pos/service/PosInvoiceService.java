@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
 @Service
 public class PosInvoiceService {
 
+    private final com.sccgroup.restaurant_management.payment.service.CollectionService collection;
+    private final com.sccgroup.restaurant_management.payment.service.InvoiceMutationGuard mutationGuard;
     private final InvoiceRepository invoiceRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final OrderRepository orderRepository;
@@ -48,7 +50,8 @@ public class PosInvoiceService {
                              OrderComboRepository orderComboRepository,
                              RealtimeEventPublisher realtimeEventPublisher,
                              TableReleaseService tableReleaseService,
-                             PaymentTransactionRepository paymentTransactionRepository) {
+                             PaymentTransactionRepository paymentTransactionRepository, com.sccgroup.restaurant_management.payment.service.CollectionService collection, com.sccgroup.restaurant_management.payment.service.InvoiceMutationGuard mutationGuard) {
+        this.collection=collection; this.mutationGuard=mutationGuard;
         this.invoiceRepository = invoiceRepository;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.orderRepository = orderRepository;
@@ -82,13 +85,14 @@ public class PosInvoiceService {
 
         return new InvoiceDetailResponse(
                 invoice.getId(), table.getId(), table.getTableNumber(), table.getFloor(),
-                invoice.getStatus().name(), itemDtos, comboDtos, calculateTotal(items, combos),
+                invoice.getStatus().name(), itemDtos, comboDtos, invoice.getCollectionTotal()!=null && collection.hasEntries(invoiceId) ? invoice.getCollectionTotal() : calculateTotal(items, combos),
                 invoice.getPaymentMethod() != null ? invoice.getPaymentMethod().name() : null,
                 invoice.getAmountReceived(),
                 invoice.getChangeAmount(),
                 invoice.getBankTransactionRef(),
                 invoice.getPaidAt(),
-                receivedAmount(invoice)
+                receivedAmount(invoice),
+                collection.summary(invoiceId)
         );
     }
 
@@ -104,7 +108,7 @@ public class PosInvoiceService {
     }
 
     /** Kiểm tra hóa đơn có thể thanh toán, trả về tổng tiền hiện tại. Gọi lúc tạo giao dịch. */
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BigDecimal preparePayment(Long invoiceId) {
         lockOpenInvoiceOrThrow(invoiceId);
         List<OrderItem> items = loadInvoiceItems(invoiceId);
@@ -116,7 +120,7 @@ public class PosInvoiceService {
     }
 
     /** Đóng hóa đơn khi đối tác báo tiền đã về. */
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void markPaidOnline(Long invoiceId, String providerRef, BigDecimal paidAmount) {
         Invoice invoice = lockOpenInvoiceOrThrow(invoiceId);
 
@@ -137,9 +141,10 @@ public class PosInvoiceService {
                 new InvoiceStatusEvent(invoice.getId(), invoice.getTable().getId(), invoice.getStatus().name()));
     }
 
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void pay(Long invoiceId, PayRequest request) {
         Invoice invoice = lockOpenInvoiceOrThrow(invoiceId);
+        if (collection.hasEntries(invoiceId)) throw new ConflictException("USE_COLLECTION_WORKSPACE", "Hóa đơn đã có khoản ghi nhận; dùng khu vực Thanh toán linh hoạt để thu số còn lại");
         // Same invoice lock as online create/callback: do not collect cash while a link is pending.
         if (!paymentTransactionRepository.findByInvoiceIdAndStatusIn(invoiceId, com.sccgroup.restaurant_management.payment.service.UnresolvedPayments.STATUSES).isEmpty()) {
             throw new ConflictException("INVOICE_PAYMENT_PENDING",
@@ -177,10 +182,10 @@ public class PosInvoiceService {
 
     }
 
-    @Transactional
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void cancel(Long invoiceId) {
-        Invoice invoice = getOpenInvoiceOrThrow(invoiceId);
-        List<OrderItem> items = loadInvoiceItems(invoiceId);
+        Invoice invoice = mutationGuard.lockForMutation(invoiceId);
+        List<OrderItem> items = orderItemRepository.findAllByIdForUpdate(loadInvoiceItems(invoiceId).stream().map(OrderItem::getId).toList());
 
         boolean hasCommittedItem = items.stream().anyMatch(oi -> switch (oi.getStatus()) {
             case COOKING, DONE, SERVED, RETURNED -> true;
@@ -230,6 +235,8 @@ public class PosInvoiceService {
 
     private BigDecimal receivedAmount(Invoice invoice) {
         if (invoice.getStatus() != InvoiceStatus.PAID) return null;
+        var summary=collection.summary(invoice.getId());
+        if (!summary.entries().isEmpty()) return summary.received().min(summary.total());
         if (invoice.getPaymentMethod() == PaymentMethod.CASH) {
             if (invoice.getAmountReceived() == null || invoice.getChangeAmount() == null) return null;
             return invoice.getAmountReceived().subtract(invoice.getChangeAmount());

@@ -24,7 +24,9 @@ export function receiptError(invoice: InvoiceDetail): string | null {
     if (!validMoney(invoice.paidAmount) || cents(invoice.paidAmount) !== cents(invoice.totalAmount))
       return 'Số tiền đã nhận chưa được xác minh hoặc khác tổng hiện tại. Cần kiểm tra trước khi in hóa đơn.';
     if (!invoice.paidAt || !Number.isFinite(new Date(invoice.paidAt).getTime())) return 'Thiếu thời điểm thanh toán để in hóa đơn.';
-    if (invoice.paymentMethod === 'CASH') {
+    if (invoice.collection?.entries.length) {
+      if (cents(invoice.collection.received) < cents(invoice.totalAmount)) return 'Chưa thu đủ tiền.';
+    } else if (invoice.paymentMethod === 'CASH') {
       if (!validMoney(invoice.amountReceived) || !validMoney(invoice.changeAmount) || cents(invoice.amountReceived) - cents(invoice.changeAmount) !== cents(invoice.paidAmount))
         return 'Tiền khách đưa và tiền thối chưa khớp số tiền đã nhận.';
     } else if (invoice.paymentMethod !== 'BANK_TRANSFER' || !invoice.bankTransactionRef?.trim()) return 'Thiếu thông tin phương thức hoặc mã giao dịch thanh toán.';
@@ -51,7 +53,11 @@ export default function InvoiceReceipt({ invoice }: { invoice: InvoiceDetail }) 
     </tbody></table>
     {singles.length === 0 && combos.length === 0 && <p>Không có món tính tiền.</p>}
     <div className="receipt-total"><strong>{paid ? 'Tổng thanh toán' : 'Tổng tạm tính'}: {money(invoice.totalAmount)}</strong></div>
-    {paid ? <div className="receipt-payment"><p>Phương thức: {invoice.paymentMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản online'}</p>
+    {invoice.collection?.entries.length ? <div className="receipt-payment"><h4>Các khoản đã nhận</h4>
+      {invoice.collection.entries.filter(e=>e.status==='VERIFIED').map(e=><div key={e.id}><p>{e.source==='CASH'?'Tiền mặt':e.providerConfirmed?'VNPay đã xác minh':'Chuyển khoản xác nhận thủ công'}: {money(e.amount)}</p>{e.source==='CASH'&&<p>Khách đưa: {money(e.tender??0)} · Thối: {money(e.changeDue??0)}</p>}<p>Mã: {e.reference??e.id} · {new Date(e.verifiedAt??e.createdAt).toLocaleString('vi-VN')}</p></div>)}
+      <p><strong>Tổng đã nhận: {money(invoice.collection.received)}</strong></p><p>Còn thu: {money(invoice.collection.remaining)}</p>{invoice.collection.excess>0&&<p>Tiền thừa cần đối chiếu / hoàn: {money(invoice.collection.excess)}</p>}
+      {!paid&&<p>CHƯA THANH TOÁN ĐỦ — phiếu ghi nhận một phần</p>}
+    </div> : paid ? <div className="receipt-payment"><p>Phương thức: {invoice.paymentMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản online'}</p>
       {invoice.paymentMethod === 'CASH' && <><p>Tiền khách đưa: {money(invoice.amountReceived!)}</p><p>Tiền thối lại: {money(invoice.changeAmount!)}</p></>}
       <p><strong>Số tiền đã nhận: {money(invoice.paidAmount!)}</strong></p>
       {invoice.paymentMethod === 'BANK_TRANSFER' && <p>Mã tham chiếu: {invoice.bankTransactionRef}</p>}

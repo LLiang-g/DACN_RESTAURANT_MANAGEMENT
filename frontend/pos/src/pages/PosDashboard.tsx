@@ -7,6 +7,7 @@ import TableOverviewPanel from '../components/TableOverviewPanel';
 import CallStaffPanel from '../components/CallStaffPanel';
 import InvoiceDetailModal from '../components/InvoiceDetailModal';
 import './PosDashboard.css';
+import CollectionCaseBrowser from '../components/CollectionCaseBrowser';
 
 type Tab = 'tables' | 'pending' | 'callStaff';
 interface Props { onLogout: () => void; }
@@ -18,6 +19,7 @@ const tabs: { key: Tab; label: string; icon: string; description: string }[] = [
 
 export default function PosDashboard({ onLogout }: Props) {
   const username = localStorage.getItem('username') ?? 'Lễ tân';
+  const [showCases,setShowCases]=useState(false);
   const [tab, setTab] = useState<Tab>('tables');
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [tables, setTables] = useState<TableOverview[]>([]);
@@ -94,6 +96,7 @@ export default function PosDashboard({ onLogout }: Props) {
       <main className="pos-main">
         <header className="pos-topbar"><span>Quầy lễ tân <span className="pos-topbar-divider">/</span> <strong>{currentTab.label}</strong></span>
           <span className={`pos-connection ${connected ? 'is-connected' : ''}`}><i aria-hidden="true" />{connected ? 'Kết nối trực tiếp' : 'Đang kết nối lại'}</span>
+          <button onClick={()=>setShowCases(true)}>Đối chiếu / hoàn tiền</button>
         </header>
         <div className="pos-content">
           <div className="pos-page-heading"><div><p className="pos-eyebrow">SẴN SÀNG CHO MỘT LƯỢT PHỤC VỤ MỚI</p><h1>{currentTab.label}</h1><p>{currentTab.description}</p></div>
@@ -131,6 +134,7 @@ export default function PosDashboard({ onLogout }: Props) {
         </div>
       </main>
       {toast && <button className="call-staff-toast" role="status" onClick={() => { setToast(null); setTab('callStaff'); }}>Bàn {tables.find(table => table.tableId === toast.tableId)?.tableNumber ?? toast.tableId} vừa gọi nhân viên <span>Tiếp nhận →</span></button>}
+      {showCases && <CollectionCaseBrowser onClose={()=>setShowCases(false)}/>}
       {selectedInvoiceId !== null && <InvoiceDetailModal invoiceId={selectedInvoiceId} refreshVersion={invoiceRefreshVersion} onClose={() => setSelectedInvoiceId(null)} onChanged={refresh} />}
     </div>
   );

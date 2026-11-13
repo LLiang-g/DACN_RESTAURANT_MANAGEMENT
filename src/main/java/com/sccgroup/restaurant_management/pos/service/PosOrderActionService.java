@@ -8,6 +8,8 @@ import com.sccgroup.restaurant_management.common.realtime.RealtimeEventPublisher
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItem;
 import com.sccgroup.restaurant_management.domain.entity.order.OrderItemStatus;
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
+import com.sccgroup.restaurant_management.payment.service.InvoiceMutationGuard;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sccgroup.restaurant_management.common.exception.ConflictException;
@@ -22,16 +24,19 @@ public class PosOrderActionService {
     private final OrderItemRepository orderItemRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceMutationGuard invoiceMutationGuard;
 
     public PosOrderActionService(OrderItemRepository orderItemRepository,
                                  RealtimeEventPublisher realtimeEventPublisher,
-                                 InvoiceRepository invoiceRepository) {
+                                 InvoiceRepository invoiceRepository,
+                                 InvoiceMutationGuard invoiceMutationGuard) {
         this.orderItemRepository = orderItemRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
         this.invoiceRepository = invoiceRepository;
+        this.invoiceMutationGuard = invoiceMutationGuard;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void approve(Long orderItemId) {
         OrderItem item = getPendingItemOrThrow(orderItemId);
 
@@ -58,7 +63,7 @@ public class PosOrderActionService {
         );
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void reject(Long orderItemId, String reason) {
         if (reason == null || reason.isBlank()) {
             throw new BusinessException("REJECT_REASON_REQUIRED", "Phải nhập lý do khi từ chối món");
@@ -82,10 +87,7 @@ public class PosOrderActionService {
 
 
     private OrderItem getPendingItemOrThrow(Long orderItemId) {
-        // Lock before reading status so approval/rejection cannot overwrite a concurrent cancellation.
-        OrderItem item = orderItemRepository.findAllByIdForUpdate(java.util.List.of(orderItemId))
-                .stream().findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
+        OrderItem item = lockMutableItem(orderItemId);
 
         if (item.getStatus() != OrderItemStatus.PENDING) {
             throw new BusinessException("ORDER_ITEM_ALREADY_PROCESSED", "Món này đã được xử lý trước đó");
@@ -97,21 +99,22 @@ public class PosOrderActionService {
      * Khóa dòng hóa đơn của món rồi bắt buộc hóa đơn còn OPEN.
      * Trả món / hoàn tác làm đổi tổng tiền, nên không được chạy xen kẽ với việc thanh toán.
      */
-    private void lockOpenInvoiceOf(OrderItem item) {
-        Long invoiceId = item.getOrder().getInvoice().getId();
-        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
-        if (invoice.getStatus() != InvoiceStatus.OPEN) {
-            throw new ConflictException("INVOICE_NOT_OPEN",
-                    "Hóa đơn không còn mở, không thể trả hoặc hoàn tác món");
-        }
+    private OrderItem lockMutableItem(Long orderItemId) {
+        Long invoiceId = orderItemRepository.findInvoiceIdByItemId(orderItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
+        invoiceMutationGuard.lockForMutation(invoiceId);
+        return lockItem(orderItemId);
+    }
+
+    private OrderItem lockItem(Long orderItemId) {
+        return orderItemRepository.findAllByIdForUpdate(java.util.List.of(orderItemId)).stream().findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
     }
 
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void markServed(Long orderItemId) {
-        OrderItem item = orderItemRepository.findById(orderItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
+        OrderItem item = lockItem(orderItemId);
 
         if (item.getStatus() != OrderItemStatus.DONE) {
             throw new BusinessException("ORDER_ITEM_NOT_SERVABLE",
@@ -130,12 +133,10 @@ public class PosOrderActionService {
 
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void undoReturn(Long orderItemId) {
-        OrderItem item = orderItemRepository.findById(orderItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
+        OrderItem item = lockMutableItem(orderItemId);
 
-        lockOpenInvoiceOf(item);
         if (item.getStatus() != OrderItemStatus.RETURNED) {
             throw new BusinessException("ORDER_ITEM_NOT_UNDOABLE",
                     "Chỉ có thể hoàn tác món đang ở trạng thái RETURNED");
@@ -151,16 +152,14 @@ public class PosOrderActionService {
                 new OrderItemStatusEvent(item.getId(), tableId, "SERVED", null));
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void markReturned(Long orderItemId, String reason) {
         if (reason == null || reason.isBlank()) {
             throw new BusinessException("RETURN_REASON_REQUIRED", "Phải nhập lý do khi trả món");
         }
 
-        OrderItem item = orderItemRepository.findById(orderItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món với id = " + orderItemId));
+        OrderItem item = lockMutableItem(orderItemId);
 
-        lockOpenInvoiceOf(item);
         if (item.getStatus() != OrderItemStatus.SERVED) {
             throw new BusinessException("ORDER_ITEM_NOT_RETURNABLE",
                     "Chỉ có thể đánh dấu trả món khi món đã ở trạng thái SERVED");

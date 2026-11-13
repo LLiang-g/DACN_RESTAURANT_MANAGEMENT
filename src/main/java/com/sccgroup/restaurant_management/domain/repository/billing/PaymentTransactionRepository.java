@@ -31,6 +31,7 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     @Query("select t.amount from PaymentTransaction t where t.txnRef = :txnRef")
     Optional<BigDecimal> findAmountByTxnRef(@Param("txnRef") String txnRef);
 
+    List<PaymentTransaction> findByInvoiceIdOrderByIdDesc(Long invoiceId);
     List<PaymentTransaction> findByInvoiceIdAndStatus(Long invoiceId, PaymentTransactionStatus status);
     List<PaymentTransaction> findByInvoiceIdAndStatusIn(Long invoiceId, java.util.Collection<PaymentTransactionStatus> statuses);
 

@@ -38,7 +38,7 @@ public class PaymentReconciliationStore {
         invoices.findByIdForUpdate(invoiceId).orElseThrow(()->new ResourceNotFoundException("Không tìm thấy hóa đơn"));
         return transactions.findByTxnRefForUpdate(ref).orElseThrow(()->new ResourceNotFoundException("Không tìm thấy giao dịch"));
     }
-    @Transactional(propagation=Propagation.REQUIRES_NEW)
+    @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public Snapshot claim(String ref) {
         PaymentTransaction tx=lock(ref);LocalDateTime now=now();
         if(tx.getProvider()!=PaymentProviderType.VNPAY || !UnresolvedPayments.STATUSES.contains(tx.getStatus()))return null;
@@ -65,7 +65,7 @@ public class PaymentReconciliationStore {
             return result!=null && result.matches("[0-9]{14}") ? result : null;
         } catch(RuntimeException e){return null;}
     }
-    @Transactional(propagation=Propagation.REQUIRES_NEW)
+    @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void complete(String ref,VnPayQueryResult result) {
         PaymentTransaction tx=lock(ref);
         // An IPN may have completed this transaction while the HTTP query was in flight.
@@ -83,7 +83,7 @@ public class PaymentReconciliationStore {
         tx.recordReconciliation(null,result.code());
         events.publishAfterCommit("/topic/pos",Map.of("type","PAYMENT_RECONCILED","txnRef",ref));
     }
-    @Transactional(propagation=Propagation.REQUIRES_NEW)
+    @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void recordApplyConflict(String ref, boolean confirmedSuccess) {
         PaymentTransaction tx=lock(ref);
         if(UnresolvedPayments.STATUSES.contains(tx.getStatus()) || confirmedSuccess && tx.getStatus()==PaymentTransactionStatus.FAILED){

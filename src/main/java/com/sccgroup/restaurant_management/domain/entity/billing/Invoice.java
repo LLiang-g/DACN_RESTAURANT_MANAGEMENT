@@ -41,6 +41,10 @@ public class Invoice {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt; // thời điểm hóa đơn bị hủy tự động sau grace period
 
+    @Column(name="collection_total", precision=12, scale=2)
+    private BigDecimal collectionTotal;
+    public BigDecimal getCollectionTotal(){return collectionTotal;}
+    public void setCollectionTotal(BigDecimal value){collectionTotal=value;}
     protected Invoice() {}
 
     public Invoice(RestaurantTable table, InvoiceStatus status, LocalDateTime openedAt) {

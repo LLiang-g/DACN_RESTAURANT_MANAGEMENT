@@ -10,6 +10,9 @@ import com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTabl
 import com.sccgroup.restaurant_management.domain.repository.order.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
+import com.sccgroup.restaurant_management.domain.repository.billing.PaymentTransactionRepository;
+import com.sccgroup.restaurant_management.payment.service.UnresolvedPayments;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,16 +36,21 @@ import java.util.stream.Collectors;
 @Service
 public class InvoiceAutoCancelService {
 
+    private final com.sccgroup.restaurant_management.payment.service.CollectionService collection;
     private final InvoiceRepository invoiceRepository;
     private final RestaurantTableRepository tableRepository;
     private final OrderItemRepository orderItemRepository;
     private final long graceMinutes;
+    private final PaymentTransactionRepository paymentTransactionRepository;
     private final Map<Long, LocalDateTime> emptySince = new ConcurrentHashMap<>();
 
-    public InvoiceAutoCancelService(InvoiceRepository invoiceRepository,
+    public InvoiceAutoCancelService(com.sccgroup.restaurant_management.payment.service.CollectionService collection, InvoiceRepository invoiceRepository,
                                     RestaurantTableRepository tableRepository,
                                     OrderItemRepository orderItemRepository,
+                                    PaymentTransactionRepository paymentTransactionRepository,
                                     @Value("${app.invoice.empty-grace-minutes:10}") long graceMinutes) {
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.collection=collection;
         this.invoiceRepository = invoiceRepository;
         this.tableRepository = tableRepository;
         this.orderItemRepository = orderItemRepository;
@@ -50,7 +58,7 @@ public class InvoiceAutoCancelService {
     }
 
     @Scheduled(fixedDelayString = "${app.invoice.scan-interval-ms:30000}")
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void scan() {
         cancelExpired(LocalDateTime.now());
     }
@@ -69,6 +77,12 @@ public class InvoiceAutoCancelService {
             // Khóa bàn rồi kiểm tra lại: khách có thể vừa gửi đơn mới ngay lúc hết hạn
             RestaurantTable table = tableRepository.findByIdForUpdate(invoice.getTable().getId()).orElse(null);
             if (table == null) continue;
+            // Recheck fresh state after acquiring the same invoice lock as payment creation.
+            if (invoiceRepository.findByIdForUpdate(invoice.getId()).isEmpty()) continue;
+            if (invoiceRepository.findStatusById(invoice.getId()).orElse(null) != InvoiceStatus.OPEN) continue;
+            if (collection.hasEntries(invoice.getId())) continue;
+            if (!paymentTransactionRepository.findByInvoiceIdAndStatusIn(invoice.getId(),
+                    UnresolvedPayments.STATUSES).isEmpty()) continue;
             if (orderItemRepository.countByInvoiceIdAndStatusNotIn(invoice.getId(), Set.of(OrderItemStatus.REJECTED)) > 0) {
                 continue;
             }
