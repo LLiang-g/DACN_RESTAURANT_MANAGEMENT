@@ -243,6 +243,17 @@ CREATE TABLE `call_staff_request` (
 ALTER TABLE payment_transaction ADD COLUMN pay_url TEXT NULL, ADD COLUMN expires_at DATETIME NULL;
 
 
+CREATE TABLE IF NOT EXISTS customer_order_submission (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    table_id BIGINT NOT NULL,
+    request_key VARCHAR(36) NOT NULL,
+    payload_hash VARCHAR(64) NOT NULL,
+    response_json LONGTEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_customer_order_submission_table_key UNIQUE (table_id, request_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 
 

@@ -1,3 +1,5 @@
+import type { CollectionSummary } from './collection';
+
 export interface PendingOrderItem {
   orderItemId: number;
   foodId: number;
@@ -68,6 +70,7 @@ export interface InvoiceDetail {
   bankTransactionRef: string | null;
   paidAt: string | null;
   paidAmount: number | null;
+  collection?: CollectionSummary;
 }
 
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';

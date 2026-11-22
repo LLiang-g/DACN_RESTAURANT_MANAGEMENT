@@ -93,3 +93,11 @@
 @media(max-width:350px) { .customer-list { grid-template-columns:1fr; }.customer-food-visual { height:170px; }.customer-navigation nav { gap:14px; }.customer-brand { font-size:12px; }.customer-hero h1 { font-size:25px; }.customer-availability { font-size:10px; } }
 @media(prefers-reduced-motion:reduce) { .customer-app *,.customer-sheet,.customer-loading * { animation:none!important; transition:none!important; } }
 @media(max-width:560px) { .customer-hero-copy { max-width:100%; } .customer-hero h1 { max-width:285px; } .customer-hero-art { opacity:.42; } .customer-cartbar-label small { font-size:10px; } }
+
+
+/* Retry an unresolved order without generating a new submission. */
+.customer-order-retry { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:15px 17px; margin:16px 0; border:1px solid #e5cfaa; background:#faf1df; border-radius:12px; }
+.customer-order-retry strong { display:block; color:#614b2f; font-size:14px; }
+.customer-order-retry p { margin:5px 0 0; font-size:12px; line-height:1.6; }
+.customer-order-retry button { flex:none; }
+@media(max-width:560px) { .customer-order-retry { align-items:stretch; flex-direction:column; gap:10px; } }

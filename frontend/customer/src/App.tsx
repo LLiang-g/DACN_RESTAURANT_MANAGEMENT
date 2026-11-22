@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { callStaff, getMenu, getTable, placeOrder } from "./api/api"
+import { useEffect, useRef, useState } from "react"
+import { callStaff, getMenu, getTable, placeOrder, isDefinitiveOrderFailure } from "./api/api"
 import {
   addToCart, buildPayload, cartCount, cartTotal, changeQuantity, formatVnd, lineTotal, type CartLine,
 } from "./store/cart"
@@ -11,6 +11,8 @@ import { ComboModal, FoodModal, Sheet } from "./components/Modals"
 import type { Menu, MenuCombo, MenuFood, OrderResult, TableInfo } from "./types/types"
 import FoodImage from "./components/FoodImage"
 import "./App.css"
+
+import { beginOrderSubmission, clearOrderSubmission, loadPendingOrder, pendingOrderStorageKey, type PendingOrderSubmission } from './store/orderSubmission'
 
 const COMBO_TAB = "combo"
 
@@ -31,6 +33,24 @@ export default function App() {
   const [cart, setCart] = useState<CartLine[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [sending, setSending] = useState(false)
+  const submitInFlight = useRef(false)
+  const [pendingOrder, setPendingOrder] = useState<PendingOrderSubmission | null>(null)
+  const [pendingReadError, setPendingReadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!Number.isSafeInteger(tableId) || tableId <= 0) return
+    const load = () => {
+      try { setPendingOrder(loadPendingOrder(tableId)); setPendingReadError(null) }
+      catch (error) { setPendingReadError((error as Error).message) }
+    }
+    load()
+    const changed = (event: StorageEvent) => {
+      if (event.key === null || event.key === pendingOrderStorageKey(tableId)) load()
+    }
+    window.addEventListener('storage', changed)
+    return () => window.removeEventListener('storage', changed)
+  }, [tableId])
+
   const [sendError, setSendError] = useState<string | null>(null)
   const [result, setResult] = useState<OrderResult | null>(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
@@ -90,25 +110,60 @@ export default function App() {
     setTimeout(() => setStaffMessage(null), 4000)
   }
 
-  async function submit() {
+  async function sendAttempt(attempt: PendingOrderSubmission) {
+    if (submitInFlight.current) return
+    submitInFlight.current = true
     setSending(true)
     setSendError(null)
     try {
-      const placedOrder = await placeOrder(buildPayload(tableId, cart))
+      const placedOrder = await placeOrder(attempt.payload, attempt.key)
+      try {
+        clearOrderSubmission(attempt)
+        setPendingOrder(loadPendingOrder(tableId))
+        setPendingReadError(null)
+      } catch {
+        setPendingReadError('Đơn đã được nhà hàng nhận nhưng trình duyệt chưa xóa được lần gửi cũ. Kiểm tra Đơn đã gọi; không đặt lại bằng mã mới.')
+      }
       setResult(placedOrder)
-      setCart([])
+      // Do not erase a different cart assembled while the old request was unresolved.
+      setCart(current => JSON.stringify(buildPayload(tableId, current)) === JSON.stringify(attempt.payload) ? [] : current)
       setCartOpen(false)
       refreshMenu()
     } catch (caughtError) {
+      if (isDefinitiveOrderFailure(caughtError)) {
+        try { clearOrderSubmission(attempt); setPendingOrder(loadPendingOrder(tableId)) }
+        catch (storageError) { setPendingReadError((storageError as Error).message) }
+      }
       setSendError((caughtError as Error).message)
-      refreshMenu() // lỗi thường do món vừa hết -> cập nhật lại trạng thái còn/hết
+      refreshMenu()
     } finally {
+      submitInFlight.current = false
       setSending(false)
     }
   }
 
+  async function submit() {
+    if (submitInFlight.current || pendingReadError) return
+    setSendError(null)
+    try {
+      const previous = loadPendingOrder(tableId)
+      if (previous) { setPendingOrder(previous); await sendAttempt(previous); return }
+      const attempt = beginOrderSubmission(buildPayload(tableId, cart))
+      setPendingOrder(attempt)
+      await sendAttempt(attempt)
+    } catch (error) { setSendError((error as Error).message) }
+  }
+
   return (
     <div className="customer-app">
+      {(pendingOrder || pendingReadError) && <section className="customer-order-retry" role="status" aria-live="polite">
+        <div><strong>{sending ? 'Đang gửi đơn, vui lòng chờ' : 'Lần gửi trước chưa rõ kết quả'}</strong>
+          <p>{pendingReadError || 'Gửi lại nguyên đơn trước để kiểm tra. Hệ thống dùng cùng mã gửi để tránh tạo thêm đơn.'}</p>
+          {sendError && <p className="customer-error">{sendError}</p>}
+        </div>
+        {pendingOrder && <button className="customer-secondary" disabled={sending || !!pendingReadError} onClick={() => sendAttempt(pendingOrder)}>Gửi lại đơn trước</button>}
+      </section>}
+
       <header className="customer-header">
         <a className="customer-brand" href="#" onClick={event => { event.preventDefault(); setInvoiceOpen(false) }}><span className="customer-logo" aria-hidden="true">S·</span><span>SMART DINING<small>GỌI MÓN TẠI BÀN</small></span></a>
         <div className="customer-table-pill"><span aria-hidden="true">▦</span><div><strong>Bàn {table.tableNumber}</strong><small>{table.floor}</small></div></div>
@@ -144,7 +199,7 @@ export default function App() {
         {cart.length === 0 && <div className="customer-empty"><h3>Giỏ món đang trống</h3><p>Quay lại thực đơn để chọn món bạn thích.</p></div>}
         {cart.map(line => <div key={line.key} className="customer-cartline"><div className="customer-card-body"><div className="customer-card-name">{line.name}</div><p className="customer-muted">{line.kind === "food" ? line.optionNames.join(", ") : line.selections.filter(selection => selection.optionNames.length).map(selection => `${selection.foodName}: ${selection.optionNames.join(", ")}`).join("; ")}</p><b>{formatVnd(lineTotal(line))}</b></div><div className="customer-stepper"><button disabled={sending} aria-label={`Giảm ${line.name}`} onClick={() => setCart(current => changeQuantity(current,line.key,-1))}>−</button><span>{line.quantity}</span><button disabled={sending || line.quantity >= 99} aria-label={`Tăng ${line.name}`} onClick={() => setCart(current => changeQuantity(current,line.key,1))}>+</button></div></div>)}
         {sendError && <p className="customer-error" role="alert">{sendError}</p>}
-        <div className="customer-sheet-foot"><div><small>Tạm tính</small><b>{formatVnd(cartTotal(cart))}</b></div><button className="customer-primary" disabled={sending || cart.length===0} onClick={submit}>{sending ? "Đang gửi…" : "Gửi đơn gọi món"}<span aria-hidden="true"> →</span></button></div>
+        <div className="customer-sheet-foot"><div><small>Tạm tính</small><b>{formatVnd(cartTotal(cart))}</b></div><button className="customer-primary" disabled={sending || !!pendingReadError || (!pendingOrder && cart.length===0)} onClick={submit}>{sending ? "Đang gửi…" : pendingOrder ? "Gửi lại đơn trước" : "Gửi đơn gọi món"}<span aria-hidden="true"> →</span></button></div>
         <p className="customer-order-note">Đơn sẽ được lễ tân xác nhận trước khi bếp chế biến.</p>
       </Sheet>}
       {result && <Sheet title="Nhà hàng đã nhận đơn" onClose={() => setResult(null)}><div className="customer-success-mark" aria-hidden="true">✓</div><h4 className="customer-success-title">Cảm ơn bạn đã gọi món!</h4><p className="customer-sheet-intro">Đơn #{result.orderId} đang chờ lễ tân xác nhận. Bạn có thể theo dõi trạng thái tại mục Đơn đã gọi.</p><div className="customer-success-total"><span>Tạm tính đơn vừa gửi</span><strong>{formatVnd(result.totalAmount)}</strong></div><div className="customer-sheet-foot"><button className="customer-secondary" onClick={() => { setResult(null); setInvoiceOpen(true); window.scrollTo(0,0) }}>Theo dõi đơn</button><button className="customer-primary" onClick={() => setResult(null)}>Gọi thêm món</button></div></Sheet>}
