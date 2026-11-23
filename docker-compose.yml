@@ -38,6 +38,7 @@ services:
       - LOGGING_CHARSET_CONSOLE=UTF-8
       - JWT_SECRET=${JWT_SECRET:?Set a Base64 JWT_SECRET in local .env}
       - VNPAY_ENABLED=${VNPAY_ENABLED:-false}
+      - PAYMENT_RECONCILE_ENABLED=${PAYMENT_RECONCILE_ENABLED:-false}
       - VNPAY_TMN_CODE=${VNPAY_TMN_CODE:-}
       - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET:-}
       - VNPAY_PAY_URL=${VNPAY_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}

@@ -1,0 +1,653 @@
+{
+  "info": {
+    "name": "Smart POS & KDS Performance",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Chạy riêng từng folder. baseUrl mặc định là cổng 8080 của Docker Compose chính. Với compose thử nghiệm tests/api/compose.yml, dùng http://127.0.0.1:18080. Chạy Functional một vòng trước khi đo. PERF-06 chỉ chạy trên cơ sở dữ liệu thử có thể đặt lại."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "fixtureBaseUrl",
+      "value": ""
+    },
+    {
+      "key": "enableFixtureWrites",
+      "value": "false"
+    },
+    {
+      "key": "tableId",
+      "value": "1"
+    },
+    {
+      "key": "foodId",
+      "value": ""
+    },
+    {
+      "key": "txnRef",
+      "value": ""
+    },
+    {
+      "key": "posToken",
+      "value": ""
+    },
+    {
+      "key": "kitchenToken",
+      "value": ""
+    },
+    {
+      "key": "posUsername",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "posPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "kitchenUsername",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "kitchenPassword",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Đăng nhập chuẩn bị token",
+      "description": "Điền thông tin tài khoản thử, bấm Send từng request đăng nhập phù hợp. Token được lưu ở biến collection để các folder sử dụng.",
+      "item": [
+        {
+          "name": "POS login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{loginPayload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('posPassword') || '').trim()) {",
+                  "    throw new Error('Set posPassword using a test account.');",
+                  "}",
+                  "if (!String(pm.variables.get('posUsername') || '').trim()) {",
+                  "    throw new Error('Set posUsername using a test account.');",
+                  "}",
+                  "pm.variables.set('loginPayload', JSON.stringify({username: pm.variables.get('posUsername'), password: pm.variables.get('posPassword')}));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JWT and role', () => { const d=pm.response.json(); pm.expect(d.role).to.eql('RECEPTIONIST'); pm.expect(d.token).to.be.a('string').and.not.empty; pm.collectionVariables.set('posToken',d.token); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Kitchen login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{loginPayload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('kitchenPassword') || '').trim()) {",
+                  "    throw new Error('Set kitchenPassword using a test account.');",
+                  "}",
+                  "if (!String(pm.variables.get('kitchenUsername') || '').trim()) {",
+                  "    throw new Error('Set kitchenUsername using a test account.');",
+                  "}",
+                  "pm.variables.set('loginPayload', JSON.stringify({username: pm.variables.get('kitchenUsername'), password: pm.variables.get('kitchenPassword')}));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('JWT and role', () => { const d=pm.response.json(); pm.expect(d.role).to.eql('KITCHEN'); pm.expect(d.token).to.be.a('string').and.not.empty; pm.collectionVariables.set('kitchenToken',d.token); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PERF-01 QR và thực đơn",
+      "description": "Kiểm tra cả hai request trả HTTP 200 trước khi đo. Chọn tableId của bàn có thật.",
+      "item": [
+        {
+          "name": "Tra cứu bàn",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customer/tables/{{tableId}}",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.variables.get('tableId')))) {",
+                  "    throw new Error('Set tableId to a positive integer.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Đọc thực đơn",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customer/menu",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PERF-02 POS đọc dữ liệu",
+      "description": "Chạy POS login trước. Đo hai API đọc của POS, không đưa đăng nhập vào lượt tải.",
+      "item": [
+        {
+          "name": "Sơ đồ bàn",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/pos/tables",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{posToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('posToken') || '').trim()) {",
+                  "    throw new Error('Send the corresponding login request to set posToken.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Đơn POS chờ duyệt",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/pos/orders/pending",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{posToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('posToken') || '').trim()) {",
+                  "    throw new Error('Send the corresponding login request to set posToken.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PERF-03 KDS đọc hàng đợi",
+      "description": "Chạy Kitchen login với tài khoản thuộc một khu bếp trước khi chạy.",
+      "item": [
+        {
+          "name": "Hàng đợi bếp",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/kds/orders",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{kitchenToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('kitchenToken') || '').trim()) {",
+                  "    throw new Error('Send the corresponding login request to set kitchenToken.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PERF-04 Tra cứu giao dịch MOCK",
+      "description": "Chạy POS login và điền txnRef của giao dịch MOCK có thật. Chỉ đọc trạng thái, không xác nhận giao dịch.",
+      "item": [
+        {
+          "name": "Trạng thái giao dịch",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/pos/payments/{{txnRef}}",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{posToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('txnRef') || '').trim()) {",
+                  "    throw new Error('Set txnRef to an existing MOCK transaction.');",
+                  "}",
+                  "if (!String(pm.variables.get('posToken') || '').trim()) {",
+                  "    throw new Error('Send the corresponding login request to set posToken.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PERF-05 Tải hỗn hợp chỉ đọc",
+      "description": "Chạy cả POS login và Kitchen login. Dùng cùng cấu hình dữ liệu với các lượt đo riêng để đối chiếu.",
+      "item": [
+        {
+          "name": "Tra cứu bàn",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customer/tables/{{tableId}}",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.variables.get('tableId')))) {",
+                  "    throw new Error('Set tableId to a positive integer.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Đọc thực đơn",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customer/menu",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Đơn POS chờ duyệt",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/pos/orders/pending",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{posToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('posToken') || '').trim()) {",
+                  "    throw new Error('Send the corresponding login request to set posToken.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Hàng đợi bếp",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/kds/orders",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{kitchenToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.variables.get('kitchenToken') || '').trim()) {",
+                  "    throw new Error('Send the corresponding login request to set kitchenToken.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PERF-06 Gửi đơn và gửi lại",
+      "description": "Mặc định bỏ qua ghi dữ liệu. Chỉ bật enableFixtureWrites trên dữ liệu thử, đặt fixtureBaseUrl trùng baseUrl, điền tableId và foodId. Một vòng tạo đúng một đơn mới nếu thành công, sau đó gửi lại. Theo dõi số suất còn lại khi đo lặp.",
+      "item": [
+        {
+          "name": "Tạo đơn với UUID mới",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/orders",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableId\": {{tableId}},\n  \"items\": [\n    {\n      \"foodId\": {{foodId}},\n      \"quantity\": 1,\n      \"optionIds\": []\n    }\n  ],\n  \"combos\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.variables.get('baseUrl');",
+                  "if (pm.variables.get('enableFixtureWrites') !== 'true' || !/^http:\\/\\/127\\.0\\.0\\.1:\\d+$/.test(base) || base !== pm.variables.get('fixtureBaseUrl')) {",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.variables.get('foodId')))) throw new Error('Set foodId to a positive integer.');",
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.variables.get('tableId')))) throw new Error('Set tableId to a positive integer.');",
+                  "pm.variables.unset('firstOrderId');",
+                  "pm.variables.set('orderKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test('Có mã đơn mới', () => {",
+                  "    const id = pm.response.json().orderId;",
+                  "    pm.expect(id).to.be.a('number');",
+                  "    pm.variables.set('firstOrderId', id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gửi lại cùng UUID và nội dung",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/orders",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableId\": {{tableId}},\n  \"items\": [\n    {\n      \"foodId\": {{foodId}},\n      \"quantity\": 1,\n      \"optionIds\": []\n    }\n  ],\n  \"combos\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.variables.get('baseUrl');",
+                  "if (pm.variables.get('enableFixtureWrites') !== 'true' || !/^http:\\/\\/127\\.0\\.0\\.1:\\d+$/.test(base) || base !== pm.variables.get('fixtureBaseUrl')) {",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.variables.get('foodId')))) throw new Error('Set foodId to a positive integer.');",
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.variables.get('tableId')))) throw new Error('Set tableId to a positive integer.');",
+                  "if (!pm.variables.get('orderKey') || !pm.variables.get('firstOrderId')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test('Gửi lại trả cùng mã đơn', () => pm.expect(pm.response.json().orderId).to.eql(Number(pm.variables.get('firstOrderId'))));",
+                  "pm.variables.unset('firstOrderId');",
+                  "pm.variables.unset('orderKey');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
