@@ -27,13 +27,14 @@ public class VnPayProvider implements PaymentProvider {
     private final String tmnCode;
     private final String hashSecret;
     private final String payUrl;
-    private final String publicBaseUrl;
+    private final String returnUrl;
 
     public VnPayProvider(
             @Value("${vnpay.tmn-code}") String tmnCode,
             @Value("${vnpay.hash-secret}") String hashSecret,
             @Value("${vnpay.pay-url}") String payUrl,
             @Value("${app.public-base-url}") String publicBaseUrl,
+            @Value("${vnpay.return-url:}") String configuredReturnUrl,
             @Value("${VNPAY_EXPIRE_SECONDS:90}") int expireSeconds) {
 
         if (tmnCode.isBlank() || hashSecret.isBlank()) {
@@ -50,7 +51,16 @@ public class VnPayProvider implements PaymentProvider {
         this.tmnCode = tmnCode;
         this.hashSecret = hashSecret;
         this.payUrl = payUrl;
-        this.publicBaseUrl = publicBaseUrl;
+        String callback = configuredReturnUrl == null || configuredReturnUrl.isBlank()
+                ? publicBaseUrl.replaceAll("/+$", "") + "/api/payments/vnpay/return"
+                : configuredReturnUrl.trim();
+        java.net.URI uri = java.net.URI.create(callback);
+        if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
+                || uri.getHost() == null || uri.getRawUserInfo() != null
+                || uri.getRawFragment() != null || uri.getRawQuery() != null) {
+            throw new IllegalArgumentException("VNPAY_RETURN_URL must be an absolute HTTP(S) backend callback URL");
+        }
+        this.returnUrl = callback;
     }
 
     @Override
@@ -86,7 +96,7 @@ public class VnPayProvider implements PaymentProvider {
         params.put("vnp_Locale", "vn");
         params.put(
                 "vnp_ReturnUrl",
-                publicBaseUrl + "/api/payments/vnpay/return");
+                returnUrl);
 
         params.put("vnp_IpAddr", normalizeIp(clientIp));
         params.put("vnp_CreateDate", now.format(DATE_FMT));

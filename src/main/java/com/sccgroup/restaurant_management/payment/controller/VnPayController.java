@@ -21,8 +21,11 @@ public class VnPayController {
 
     private final VnPayProvider vnPayProvider;
     private final PaymentService paymentService;
+    private final com.sccgroup.restaurant_management.payment.service.PaymentReturnService returns;
 
-    public VnPayController(VnPayProvider vnPayProvider, PaymentService paymentService) {
+    public VnPayController(VnPayProvider vnPayProvider, PaymentService paymentService,
+                           com.sccgroup.restaurant_management.payment.service.PaymentReturnService returns) {
+        this.returns = returns;
         this.vnPayProvider = vnPayProvider;
         this.paymentService = paymentService;
     }
@@ -65,24 +68,23 @@ public class VnPayController {
         }
     }
 
-    /** Trình duyệt của khách được đưa về đây sau khi thanh toán. Chỉ hiển thị, KHÔNG đóng hóa đơn. */
-    @GetMapping(value = "/return", produces = "text/html;charset=UTF-8")
-    public String returnPage(@RequestParam Map<String, String> params) {
-        String message;
-        if (!vnPayProvider.isValidSignature(params)) {
-            message = "Dữ liệu trả về không hợp lệ.";
-        } else if ("00".equals(params.get("vnp_ResponseCode"))) {
-            message = "Thanh toán thành công. Bạn có thể đóng trang này.";
-        } else if ("24".equals(params.get("vnp_ResponseCode"))) {
-            message = "Bạn đã hủy giao dịch.";
-        } else {
-            message = "Thanh toán chưa thành công. Vui lòng thử lại hoặc liên hệ nhân viên.";
-        }
-        return "<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\">"
-                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-                + "<title>Kết quả thanh toán</title></head>"
-                + "<body style=\"font-family:sans-serif;text-align:center;padding:48px 16px\">"
-                + "<h2>" + message + "</h2></body></html>";
+    /** Browser navigation only. Neither return nor result lookup applies a payment result. */
+    @GetMapping("/return")
+    public org.springframework.http.ResponseEntity<Void> returnPage(@RequestParam Map<String, String> params) {
+        return org.springframework.http.ResponseEntity.status(303)
+                .location(returns.returnLocation(params))
+                .header("Cache-Control", "no-store")
+                .header("Referrer-Policy", "no-referrer")
+                .build();
+    }
+
+    @GetMapping("/result")
+    public org.springframework.http.ResponseEntity<com.sccgroup.restaurant_management.payment.service.PaymentReturnService.Result> result(
+            @RequestHeader(value="X-Payment-Result-Token", required=false) String token) {
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .header("Referrer-Policy", "no-referrer")
+                .body(returns.result(token));
     }
 
     private Map<String, String> rsp(String code, String message) {
