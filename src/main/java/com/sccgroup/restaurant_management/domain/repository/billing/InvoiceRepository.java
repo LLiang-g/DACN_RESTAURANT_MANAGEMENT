@@ -14,6 +14,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
+    @Query("select i.table.id from Invoice i where i.id = :id")
+    Optional<Long> findTableIdById(@Param("id") Long id);
+
+    boolean existsByTableIdAndStatus(Long tableId, InvoiceStatus status);
+    boolean existsByTableIdAndIdGreaterThan(Long tableId, Long id);
+
 
     /** Hóa đơn đang mở (OPEN) của một bàn, nếu có. */
 

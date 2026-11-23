@@ -184,6 +184,7 @@ public class PosInvoiceService {
 
     @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void cancel(Long invoiceId) {
+        tableReleaseService.lockTableForInvoice(invoiceId);
         Invoice invoice = mutationGuard.lockForMutation(invoiceId);
         List<OrderItem> items = orderItemRepository.findAllByIdForUpdate(loadInvoiceItems(invoiceId).stream().map(OrderItem::getId).toList());
 

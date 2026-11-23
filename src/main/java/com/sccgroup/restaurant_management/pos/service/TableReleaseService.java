@@ -18,37 +18,55 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Nơi duy nhất quyết định "bàn có nên tự động về Trống hay chưa".
- * Gọi lại ở MỌI điểm có thể là sự kiện khiến điều kiện trở thành đúng:
- * sau khi thanh toán, sau khi hủy hóa đơn, và sau khi 1 món chuyển sang
- * SERVED/REJECTED/RETURNED (vì hóa đơn có thể đã PAID từ trước việc này).
+ * Releases a cancelled invoice's table only when it has no open or subsequent invoice.
+ * PAID invoices continue to require the receptionist's explicit freeTable action.
+ * Callers must acquire the table lock before any invoice/item locks.
  */
 @Service
 public class TableReleaseService {
 
+    private final com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository tables;
     private final InvoiceRepository invoiceRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final RealtimeEventPublisher realtimeEventPublisher;
 
-    public TableReleaseService(InvoiceRepository invoiceRepository,
+    public TableReleaseService(com.sccgroup.restaurant_management.domain.repository.floor.RestaurantTableRepository tables,
+                               InvoiceRepository invoiceRepository,
                                OrderRepository orderRepository,
                                OrderItemRepository orderItemRepository,
                                RealtimeEventPublisher realtimeEventPublisher) {
+        this.tables = tables;
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.realtimeEventPublisher = realtimeEventPublisher;
     }
 
-    @Transactional
+    /** Must run before invoice/item locks in the caller. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public com.sccgroup.restaurant_management.domain.entity.floor.RestaurantTable lockTableForInvoice(Long invoiceId) {
+        Long tableId = invoiceRepository.findTableIdById(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn với id = " + invoiceId));
+        return tables.findByIdForUpdate(tableId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với id = " + tableId));
+    }
+
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void releaseTableIfSettled(Long invoiceId) {
-        Invoice invoice = invoiceRepository.findByIdWithTable(invoiceId)
+        var table = lockTableForInvoice(invoiceId);
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn với id = " + invoiceId));
 
         // Chỉ tự động trả bàn khi hóa đơn bị HỦY. Hóa đơn PAID luôn cần lễ tân xác nhận
         // bằng tay (freeTable) — "mọi món đã SERVED" không đồng nghĩa "khách đã rời bàn".
-        if (invoice.getStatus() != InvoiceStatus.CANCELLED) {
+        if (invoiceRepository.findStatusById(invoiceId).orElseThrow() != InvoiceStatus.CANCELLED) {
+            return;
+        }
+
+        // An older cancellation must never release a subsequent visit, even if already paid.
+        if (invoiceRepository.existsByTableIdAndStatus(table.getId(), InvoiceStatus.OPEN)
+                || invoiceRepository.existsByTableIdAndIdGreaterThan(table.getId(), invoiceId)) {
             return;
         }
 
@@ -63,9 +81,9 @@ public class TableReleaseService {
                         || oi.getStatus() == OrderItemStatus.RETURNED);
 
         if (allResolved) {
-            invoice.getTable().setStatus(TableStatus.AVAILABLE);
+            table.setStatus(TableStatus.AVAILABLE);
             realtimeEventPublisher.publishAfterCommit("/topic/pos",
-                    new TableStatusEvent(invoice.getTable().getId(), TableStatus.AVAILABLE.name()));
+                    new TableStatusEvent(table.getId(), TableStatus.AVAILABLE.name()));
         }
     }
 }

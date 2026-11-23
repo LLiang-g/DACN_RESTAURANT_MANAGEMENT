@@ -72,16 +72,13 @@ public class PosTableService {
                 .toList();
     }
 
-    // Method mới — lễ tân chủ động đưa bàn về Trống, KHÔNG phụ thuộc trạng thái hóa đơn/món.
-    // Cố ý không kiểm tra gì thêm — đây là "cửa thoát" thủ công cho các trường hợp đặc biệt
-    // (khách rời đi đột xuất, sai sót dữ liệu...) nên để lễ tân tự chịu trách nhiệm quyết định.
-    // nếu bàn còn hóa đơn mà hủy thì báo lỗi
-    @Transactional
+    // Same table lock as order submission; check invoice only after taking the lock.
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void freeTable(Long tableId) {
-        RestaurantTable table = restaurantTableRepository.findById(tableId)
+        RestaurantTable table = restaurantTableRepository.findByIdForUpdate(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bàn với id = " + tableId));
 
-        boolean hasOpenInvoice = invoiceRepository.findByTableAndStatus(table, InvoiceStatus.OPEN).isPresent();
+        boolean hasOpenInvoice = invoiceRepository.existsByTableIdAndStatus(tableId, InvoiceStatus.OPEN);
         if (hasOpenInvoice) {
             throw new BusinessException("TABLE_HAS_OPEN_INVOICE",
                     "Bàn này còn hóa đơn chưa thanh toán, không thể đưa về Trống");
