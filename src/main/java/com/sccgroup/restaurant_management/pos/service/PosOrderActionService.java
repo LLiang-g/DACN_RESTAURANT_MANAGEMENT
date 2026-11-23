@@ -42,6 +42,7 @@ public class PosOrderActionService {
 
         item.setStatus(OrderItemStatus.CONFIRMED);
         orderItemRepository.save(item);
+        publishPosChange(item);
 
         Long stationId = item.getFood().getCategory().getKitchenStation().getId();
         Long tableId = item.getOrder().getInvoice().getTable().getId();
@@ -74,6 +75,7 @@ public class PosOrderActionService {
         item.setStatus(OrderItemStatus.REJECTED);
         item.setNote(reason); // ghi đè note gốc bằng lý do từ chối — món REJECTED không xuống bếp nên note gốc hết tác dụng
         orderItemRepository.save(item);
+        publishPosChange(item);
 
         Long tableId = item.getOrder().getInvoice().getTable().getId();
 
@@ -85,6 +87,16 @@ public class PosOrderActionService {
     }
 
 
+
+    /** Refresh every POS only after this transaction has committed. */
+    private void publishPosChange(OrderItem item) {
+        realtimeEventPublisher.publishAfterCommit("/topic/pos", java.util.Map.of(
+                "type", "ORDER_ITEM_CHANGED",
+                "orderItemId", item.getId(),
+                "invoiceId", item.getOrder().getInvoice().getId(),
+                "tableId", item.getOrder().getInvoice().getTable().getId(),
+                "status", item.getStatus().name()));
+    }
 
     private OrderItem getPendingItemOrThrow(Long orderItemId) {
         OrderItem item = lockMutableItem(orderItemId);
@@ -124,6 +136,7 @@ public class PosOrderActionService {
         item.setStatus(OrderItemStatus.SERVED);
         item.setServedAt(LocalDateTime.now());
         orderItemRepository.save(item);
+        publishPosChange(item);
 
         Long tableId = item.getOrder().getInvoice().getTable().getId();
         realtimeEventPublisher.publishAfterCommit(
@@ -146,6 +159,7 @@ public class PosOrderActionService {
         item.setReturnedAt(null);
         item.setNote(null); // Xóa lý do trả món khi hoàn tác
         orderItemRepository.save(item);
+        publishPosChange(item);
 
         Long tableId = item.getOrder().getInvoice().getTable().getId();
         realtimeEventPublisher.publishAfterCommit("/topic/table/" + tableId,
@@ -169,6 +183,7 @@ public class PosOrderActionService {
         item.setReturnedAt(LocalDateTime.now());
         item.setNote(reason.trim()); // Lưu lý do trả món vào note
         orderItemRepository.save(item);
+        publishPosChange(item);
 
         Long tableId = item.getOrder().getInvoice().getTable().getId();
         realtimeEventPublisher.publishAfterCommit(
