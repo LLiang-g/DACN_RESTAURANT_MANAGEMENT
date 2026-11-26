@@ -1,0 +1,80 @@
+name: Restaurant CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      known_gaps:
+        description: 'Also run unresolved bug checks (may fail)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restaurant-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-e2e:
+    name: Build and business E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/admin/package-lock.json
+      - name: Check Docker and schema contract
+        run: |
+          docker version
+          docker compose version
+          node tests/e2e-infra/refresh-schema.cjs --check
+      - name: Install test dependencies
+        run: npm --prefix frontend/admin ci --no-audit --no-fund
+      - name: Install Chromium and Linux libraries
+        working-directory: frontend/admin
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Build application and start isolated test stack
+        id: stack
+        run: node tests/e2e-infra/run.cjs up
+      - name: Admin utility tests
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: npm --prefix frontend/admin run test:admin
+      - name: Main business suite
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: node tests/e2e/run.cjs test
+      - name: Payment signature and Return suite (local provider)
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: node tests/e2e/run.cjs vnpay
+      - name: Scheduler suite
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: node tests/e2e/run.cjs auto-cancel
+      - name: Unresolved bugs (manual opt-in)
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && github.event_name == 'workflow_dispatch' && inputs.known_gaps }}
+        run: node tests/e2e/run.cjs known-gaps
+      - name: Gather execution coverage
+        if: ${{ always() }}
+        run: node tests/e2e/coverage.cjs
+      - name: Prepare report and job summary
+        if: ${{ always() }}
+        run: node tests/ci/report.cjs
+      - name: Stop isolated test stack
+        if: ${{ always() }}
+        run: node tests/e2e-infra/run.cjs down
+      - name: Upload test summaries
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-results/
+          if-no-files-found: warn
+          retention-days: 7

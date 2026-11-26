@@ -1,0 +1,9 @@
+const fs=require('node:fs'),path=require('node:path');
+const dir=path.join(__dirname,'.local');fs.mkdirSync(dir,{recursive:true});
+const matrixFile=fs.existsSync(path.join(__dirname,'matrix.json'))?path.join(__dirname,'matrix.json'):path.join(require('./support/runtime.cjs').root,'tests/e2e/matrix.json');
+const matrix=JSON.parse(fs.readFileSync(matrixFile));
+const suites=['test','vnpay','auto-cancel','known-gaps'];const runs=suites.map(s=>{const f=path.join(dir,'summary-'+s+'.json');return fs.existsSync(f)?{suite:s,...JSON.parse(fs.readFileSync(f))}:{suite:s,status:'NOT_RUN',tests:[]};});
+const cases=matrix.map(c=>{const variants=runs.flatMap(r=>(r.tests||[]).filter(t=>t.caseIds.includes(c.id)).map(t=>({suite:r.suite,title:t.title,status:t.status})));return {id:c.id,scenario:c.scenario,status:c.id==='PAY-12'?'MANUAL_NOT_RUN':!variants.length?'NOT_RUN':variants.some(t=>t.status!=='passed')?'HAS_FAILED_VARIANTS':'IMPLEMENTED_VARIANTS_PASS',coverageNote:'Mapping of implemented variants only; not a claim that every variant in the scenario is covered.',variants};});
+const report={date:new Date().toISOString(),runs:runs.map(r=>({suite:r.suite,date:r.date,status:r.status,passed:r.tests?.filter(t=>t.status==='passed').length??0,failed:r.tests?.filter(t=>t.status!=='passed').length??0})),cases};
+fs.writeFileSync(path.join(dir,'coverage.json'),JSON.stringify(report,null,2));
+const md=['# Execution coverage','',report.date,'','Implemented variants passing does not mean complete business coverage. API-only cases are not browser E2E. PAY-12 remains manual.','',...report.runs.map(r=>`- ${r.suite}: ${r.status}; passed=${r.passed}, failed=${r.failed}`),'','| ID | Scenario | Result of implemented variants |','|---|---|---|',...cases.map(c=>`| ${c.id} | ${c.scenario} | ${c.status} |`)];fs.writeFileSync(path.join(dir,'coverage.md'),md.join('\n')+'\n');console.log('Coverage written to tests/e2e/.local/coverage.*');

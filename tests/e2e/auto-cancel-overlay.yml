@@ -1,0 +1,6 @@
+# Controlled clock acceleration for the existing empty-invoice scheduler only.
+services:
+  backend:
+    environment:
+      APP_INVOICE_EMPTY_GRACE_MINUTES: '0'
+      APP_INVOICE_SCAN_INTERVAL_MS: '1000'

@@ -1,0 +1,13 @@
+{
+  "name": "restaurant-business-e2e",
+  "private": true,
+  "scripts": {
+    "test": "node run.cjs test",
+    "test:list": "node run.cjs list",
+    "test:known-gaps": "node run.cjs known-gaps",
+    "test:all": "node run.cjs all",
+    "test:vnpay": "node run.cjs vnpay",
+    "test:auto-cancel": "node run.cjs auto-cancel",
+    "coverage": "node coverage.cjs"
+  }
+}

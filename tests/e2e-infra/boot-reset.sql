@@ -1,0 +1,27 @@
+-- ONLY restaurant_e2e: reset fixture data after Hibernate update, before seed.
+SET FOREIGN_KEY_CHECKS=0;
+TRUNCATE TABLE `activity_log`;
+TRUNCATE TABLE `call_staff_request`;
+TRUNCATE TABLE `category`;
+TRUNCATE TABLE `collection_case`;
+TRUNCATE TABLE `collection_entry`;
+TRUNCATE TABLE `combo`;
+TRUNCATE TABLE `combo_item`;
+TRUNCATE TABLE `customer_order`;
+TRUNCATE TABLE `customer_order_submission`;
+TRUNCATE TABLE `food`;
+TRUNCATE TABLE `food_option`;
+TRUNCATE TABLE `ingredient`;
+TRUNCATE TABLE `invoice`;
+TRUNCATE TABLE `kitchen_account`;
+TRUNCATE TABLE `kitchen_station`;
+TRUNCATE TABLE `option_group`;
+TRUNCATE TABLE `order_combo`;
+TRUNCATE TABLE `order_item`;
+TRUNCATE TABLE `order_item_option`;
+TRUNCATE TABLE `payment_transaction`;
+TRUNCATE TABLE `recipe`;
+TRUNCATE TABLE `restaurant_table`;
+TRUNCATE TABLE `staff_account`;
+TRUNCATE TABLE `stock_transaction`;
+SET FOREIGN_KEY_CHECKS=1;
