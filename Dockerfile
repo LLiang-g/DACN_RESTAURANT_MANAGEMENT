@@ -20,6 +20,9 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar -x test --no-daemo
 # Run stage: Dùng JRE 21 để chạy ứng dụng (giúp image nhẹ hơn)
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 ENV JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
 COPY --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 8080

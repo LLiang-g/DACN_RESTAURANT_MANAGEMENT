@@ -3,6 +3,10 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
+# Public Customer URL is embedded by Vite during build, not container startup.
+ARG VITE_CUSTOMER_URL
+ENV VITE_CUSTOMER_URL=${VITE_CUSTOMER_URL}
+
 # Copy toàn bộ mã nguồn frontend (node_modules và dist đã bị .dockerignore loại bỏ)
 COPY . .
 
