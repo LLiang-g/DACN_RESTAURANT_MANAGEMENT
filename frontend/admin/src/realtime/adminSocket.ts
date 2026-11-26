@@ -1,3 +1,4 @@
+import { getStoredAuth } from '../services/http';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
@@ -23,12 +24,17 @@ function open() {
   const next = new Client({
     webSocketFactory: () => new SockJS('/ws') as unknown as WebSocket,
     reconnectDelay: 3000,
+    beforeConnect: () => {
+      const token = getStoredAuth()?.token;
+      next.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    },
     onConnect: () => {
       setConnected(true);
       next.subscribe('/topic/admin/activity', () => changeListeners.forEach((listener) => listener()));
       // vừa (kết nối lại): tải lại để bù phần đã lỡ trong lúc mất kết nối
       changeListeners.forEach((listener) => listener());
     },
+    onStompError: () => setConnected(false),
     onWebSocketClose: () => setConnected(false),
   });
   client = next;

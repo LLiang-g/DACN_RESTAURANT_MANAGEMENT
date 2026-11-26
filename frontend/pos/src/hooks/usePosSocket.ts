@@ -12,6 +12,10 @@ export function usePosSocket(onMessage: () => void, onEvent?: (event: PosEvent) 
     let hasConnected = false;
     const client = new Client({
       webSocketFactory: () => new SockJS('/ws'), reconnectDelay: 5000,
+      beforeConnect: () => {
+        const token = localStorage.getItem('accessToken');
+        client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      },
       onConnect: () => {
         setConnected(true);
         client.subscribe('/topic/pos', message => {
