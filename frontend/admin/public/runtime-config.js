@@ -1,0 +1,1 @@
+window.__SMART_POS_CONFIG__ = { customerUrl: "" };

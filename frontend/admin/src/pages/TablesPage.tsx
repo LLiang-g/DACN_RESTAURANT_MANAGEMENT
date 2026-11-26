@@ -149,7 +149,7 @@ export default function TablesPage() {
 
   const getTableQrUrl = (tableId: number) => {
     const configured = import.meta.env.VITE_CUSTOMER_URL as string | undefined;
-    const base = configured || `${window.location.protocol}//${window.location.hostname}:5173/`;
+    const base = window.__SMART_POS_CONFIG__?.customerUrl || configured || `${window.location.protocol}//${window.location.hostname}:5173/`;
     const url = new URL(base); url.searchParams.set('table', String(tableId)); return url.toString();
   };
 

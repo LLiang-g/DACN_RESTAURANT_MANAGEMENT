@@ -1,0 +1,32 @@
+{
+	email {$ACME_EMAIL}
+}
+
+(ip_certificate) {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			profile shortlived
+		}
+	}
+}
+
+https://{$DEPLOY_IP} {
+	import ip_certificate
+	reverse_proxy frontend:80
+}
+
+https://{$DEPLOY_IP}:8443 {
+	import ip_certificate
+	reverse_proxy frontend:81
+}
+
+https://{$DEPLOY_IP}:8444 {
+	import ip_certificate
+	reverse_proxy frontend:82
+}
+
+https://{$DEPLOY_IP}:8445 {
+	import ip_certificate
+	reverse_proxy frontend:83
+}
