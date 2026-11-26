@@ -72,7 +72,7 @@ export function formatLogTime(iso: string): string {
  * dữ liệu cũ đã lưu thế nào thì hiện thế ấy.
  */
 export function describeAction(action: string, target: string, detail: string): string {
-  return `${action.trim().toLocaleLowerCase("vi")} ${target}: ${detail.trim()}`;
+  return `${action.trim().toLocaleLowerCase("vi")} ${target} : ${detail.trim()}`;
 }
 
 /** Màu dòng log: thêm (xanh), xóa (đỏ), sửa (vàng), còn lại (xám). */
