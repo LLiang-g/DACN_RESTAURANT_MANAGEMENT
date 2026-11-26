@@ -1,0 +1,4 @@
+export interface CollectionEntry { id:number;source:string;amount:number;tender:number|null;changeDue:number|null;status:string;reference:string|null;providerTxnNo:string|null;providerConfirmed:boolean;createdBy:number|null;verifiedBy:number|null;createdAt:string;verifiedAt:string|null;note:string }
+export interface CollectionCase {id:number;invoiceId:number;entryId:number;status:string;amount:number;reason:string;refundReference:string|null;completionNote:string|null}
+export interface CollectionSummary {invoiceId:number;status:string;total:number;received:number;remaining:number;excess:number;entries:CollectionEntry[];cases:CollectionCase[]}
+export interface ReceiveCollection {requestKey:string;source:string;amount:number;reference:string;txnRef:string;providerTxnNo:string;note:string;bankVerified:boolean;confirmed:boolean}

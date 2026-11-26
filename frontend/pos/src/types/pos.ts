@@ -1,0 +1,110 @@
+import type { CollectionSummary } from './collection';
+
+export interface PendingOrderItem {
+  orderItemId: number;
+  foodId: number;
+  foodName: string;
+  quantity: number;
+  note: string | null;
+  unitPrice: number;
+  options: string[];
+}
+
+export interface PendingOrder {
+  orderId: number;
+  tableId: number;
+  tableNumber: string;
+  floor: string;
+  createdAt: string;
+  items: PendingOrderItem[];
+}
+
+export interface TableOverview {
+  tableId: number;
+  tableNumber: string;
+  floor: string;
+  status: 'AVAILABLE' | 'SERVING';
+  invoiceId: number | null;
+  openedAt: string | null;
+}
+
+export interface InvoiceItem {
+  orderItemId: number;
+  foodName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  status: string;
+}
+
+export interface InvoiceComboItem {
+  foodName: string;
+  quantity: number;
+  status: string;
+}
+
+export interface InvoiceCombo {
+  orderComboId: number;
+  comboName: string;
+  quantity: number;
+  comboPrice: number;
+  lineTotal: number;
+  items: InvoiceComboItem[];
+  baseTotal: number;
+  removedDeduction: number;
+  optionSurcharge: number;
+}
+
+export interface InvoiceDetail {
+  invoiceId: number;
+  tableId: number;
+  tableNumber: string;
+  floor: string;
+  status: 'OPEN' | 'PAID' | 'CANCELLED';
+  items: InvoiceItem[];
+  combos: InvoiceCombo[];
+  totalAmount: number;
+  paymentMethod: PaymentMethod | null;
+  amountReceived: number | null;
+  changeAmount: number | null;
+  bankTransactionRef: string | null;
+  paidAt: string | null;
+  paidAmount: number | null;
+  collection?: CollectionSummary;
+}
+
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';
+
+export interface PayRequest {
+  paymentMethod: PaymentMethod;
+  amountReceived?: number;
+  bankTransactionRef?: string;
+}
+
+export interface CallStaffRequest {
+  requestId: number;
+  tableId: number;
+  tableNumber: string;
+  floor: string;
+  createdAt: string;
+}
+
+export interface InvoiceComboItem {
+  orderItemId: number;
+  foodName: string;
+  quantity: number;
+  status: string;
+}
+
+
+export type PaymentProviderType = 'MOCK' | 'VNPAY';
+export type PaymentTxStatus = 'PENDING' | 'RECONCILING' | 'SUCCESS' | 'FAILED' | 'EXPIRED';
+
+export interface PaymentResponse {
+  txnRef: string;
+  provider: PaymentProviderType;
+  amount: number;
+  status: PaymentTxStatus;
+  payUrl: string | null;
+  expiresAt?: string | null;
+}

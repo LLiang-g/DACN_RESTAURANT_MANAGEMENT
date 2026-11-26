@@ -1,0 +1,28 @@
+.print-receipt { display:none; }
+@media print {
+  @page { margin:8mm; }
+  html,body { height:auto!important; overflow:visible!important; background:#fff!important; }
+  body > *:not(.print-receipt) { display:none!important; }
+  body > .print-receipt, body > .print-receipt * { visibility:visible!important; }
+  body > .print-receipt { display:block!important; position:static!important; width:auto!important; max-width:80mm; margin:0 auto; padding:0!important; color:#000; font:11pt/1.4 Arial,sans-serif; overflow-wrap:anywhere; }
+  body .print-receipt .receipt-header { text-align:center; margin-bottom:12px; }
+  body .print-receipt h2 { font-size:14pt; margin:0 0 4px; }
+  body .print-receipt h3 { font-size:12pt; margin:0 0 4px; }
+  body .print-receipt p { margin:3px 0; }
+  body .print-receipt .receipt-state { font-weight:bold; }
+  body .print-receipt .receipt-table { width:100%; border-collapse:collapse; margin:12px 0; font-size:10pt; }
+  body .print-receipt .receipt-table th,body .print-receipt .receipt-table td { padding:5px 2px; vertical-align:top; text-align:left; border-bottom:1px dashed #aaa; }
+  body .print-receipt .receipt-table th:last-child,body .print-receipt .receipt-table td:last-child { text-align:right; }
+  body .print-receipt .receipt-table td:first-child { text-align:left; }
+  body .print-receipt .receipt-table th:nth-child(2) { width:10%; }
+  body .print-receipt .receipt-table th:last-child { width:31%; }
+  body .print-receipt .receipt-combo-line,body .print-receipt .receipt-combo-detail > div { display:flex; justify-content:space-between; gap:8px; }
+  body .print-receipt .receipt-combo-line strong:last-child,body .print-receipt .receipt-combo-detail > div > span:last-child { white-space:nowrap; }
+  body .print-receipt .receipt-combo-detail { font-size:9pt; margin-top:5px; }
+  body .print-receipt .receipt-combo-detail p { margin-top:5px; }
+  body .print-receipt .receipt-total { border-top:1px dashed #000; padding-top:8px; text-align:right; }
+  body .print-receipt .receipt-payment,body .print-receipt .receipt-note { margin-top:10px; }
+  body .print-receipt .receipt-footer { margin-top:12px; text-align:center; font-size:9pt; }
+  body .print-receipt tr,body .print-receipt .receipt-total,body .print-receipt .receipt-payment { break-inside:avoid; }
+  body .print-receipt thead { display:table-header-group; }
+}

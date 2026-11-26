@@ -1,0 +1,10 @@
+const fs=require('node:fs'),path=require('node:path');
+const defaults={api:18089,customer:15173,pos:15174,kds:15175,admin:15176};
+const file=path.join(__dirname,'.local','ports.json');
+const input=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{};
+for(const k of Object.keys(input))if(!(k in defaults))throw new Error('Unknown E2E port key: '+k);
+const ports={...defaults,...input},reserved=new Set([8080,8081,18080,3306,3307,5173,5174,5175,5176]);
+for(const n of Object.values(ports))if(!Number.isSafeInteger(n)||n<1024||n>65535||reserved.has(n))throw new Error('Use a separate unprivileged E2E port, not an application/test legacy port');
+if(new Set(Object.values(ports)).size!==5)throw new Error('E2E ports must be distinct');
+const urls=Object.fromEntries(Object.entries(ports).map(([k,v])=>[k,'http://127.0.0.1:'+v]));
+module.exports={ports,urls};

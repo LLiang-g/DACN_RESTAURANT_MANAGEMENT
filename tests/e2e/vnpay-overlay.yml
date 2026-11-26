@@ -1,0 +1,9 @@
+# Signature/callback tests only. No requests to an external VNPay server.
+services:
+  backend:
+    environment:
+      VNPAY_ENABLED: 'true'
+      VNPAY_TMN_CODE: E2ETEST1
+      VNPAY_HASH_SECRET: E2eSignatureTestOnly2026
+      VNPAY_PAY_URL: https://example.invalid/pay
+      PAYMENT_RECONCILE_ENABLED: 'false'

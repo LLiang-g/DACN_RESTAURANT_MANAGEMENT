@@ -1,0 +1,15 @@
+customer.{$DEPLOY_DOMAIN} {
+    reverse_proxy frontend:80
+}
+
+pos.{$DEPLOY_DOMAIN} {
+    reverse_proxy frontend:81
+}
+
+kds.{$DEPLOY_DOMAIN} {
+    reverse_proxy frontend:82
+}
+
+admin.{$DEPLOY_DOMAIN} {
+    reverse_proxy frontend:83
+}

@@ -1,0 +1,72 @@
+name: restaurant-e2e
+services:
+  db:
+    image: mysql:8.0
+    labels:
+      com.restaurant.test-scope: e2e-v1
+    environment:
+      MYSQL_DATABASE: restaurant_e2e
+      MYSQL_ROOT_PASSWORD: ${E2E_DB_ROOT_PASSWORD:?Use run.cjs}
+      MYSQL_USER: e2e_app
+      MYSQL_PASSWORD: ${E2E_DB_PASSWORD:?Use run.cjs}
+      TZ: Asia/Ho_Chi_Minh
+    command: ["--innodb-buffer-pool-size=128M", "--max-connections=60"]
+    volumes:
+      - ${E2E_INFRA_DIR:?Use run.cjs}/schema-base.sql:/docker-entrypoint-initdb.d/01-e2e-schema.sql:ro
+    tmpfs:
+      - /var/lib/mysql:size=512m
+    mem_limit: 768m
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysqladmin ping -h 127.0.0.1 -uroot --silent']
+      interval: 3s
+      timeout: 5s
+      retries: 60
+  backend:
+    labels:
+      com.restaurant.test-scope: e2e-v1
+    build:
+      context: ${E2E_PROJECT_ROOT:?Use run.cjs}
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: e2e
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/e2e/
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/restaurant_e2e?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_USERNAME: e2e_app
+      SPRING_DATASOURCE_PASSWORD: ${E2E_DB_PASSWORD:?Use run.cjs}
+      JWT_SECRET: ${E2E_JWT_SECRET:?Use run.cjs}
+      PAYMENT_MOCK_ENABLED: 'true'
+      MOCK_WEBHOOK_SECRET: ${E2E_MOCK_SECRET:?Use run.cjs}
+      VNPAY_ENABLED: 'false'
+      PAYMENT_RECONCILE_ENABLED: 'false'
+      PUBLIC_BASE_URL: http://127.0.0.1:${E2E_API_PORT:-18089}
+      CUSTOMER_PUBLIC_BASE_URL: http://127.0.0.1:${E2E_CUSTOMER_PORT:-15173}
+      TZ: Asia/Ho_Chi_Minh
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m -Duser.timezone=Asia/Ho_Chi_Minh -Dfile.encoding=UTF-8
+    ports:
+      - '127.0.0.1:${E2E_API_PORT:-18089}:8080'
+    volumes:
+      - ${E2E_INFRA_DIR:?Use run.cjs}/application-e2e.properties:/e2e/application-e2e.properties:ro
+      - ${E2E_INFRA_DIR:?Use run.cjs}/boot-reset.sql:/e2e/boot-reset.sql:ro
+      - ${E2E_INFRA_DIR:?Use run.cjs}/seed.sql:/e2e/seed.sql:ro
+    tmpfs:
+      - /app/uploads/admin:size=64m
+    mem_limit: 768m
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    labels:
+      com.restaurant.test-scope: e2e-v1
+    build:
+      context: ${E2E_PROJECT_ROOT:?Use run.cjs}/frontend
+      dockerfile: ${E2E_INFRA_DIR:?Use run.cjs}/Frontend.Dockerfile
+      args:
+        VITE_CUSTOMER_URL: http://127.0.0.1:${E2E_CUSTOMER_PORT:-15173}/
+    ports:
+      - '127.0.0.1:${E2E_CUSTOMER_PORT:-15173}:80'
+      - '127.0.0.1:${E2E_POS_PORT:-15174}:81'
+      - '127.0.0.1:${E2E_KDS_PORT:-15175}:82'
+      - '127.0.0.1:${E2E_ADMIN_PORT:-15176}:83'
+    mem_limit: 128m
+    depends_on:
+      - backend
