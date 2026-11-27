@@ -1,7 +1,7 @@
 {
 	email {$ACME_EMAIL}
+	default_sni {$DEPLOY_IP}
 }
-
 (ip_certificate) {
 	tls {
 		issuer acme {

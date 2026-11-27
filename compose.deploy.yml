@@ -14,7 +14,7 @@ services:
       PAYMENT_MOCK_ENABLED: "false"
       DEMO_ACCOUNTS_ENABLED: "false"
       WS_ALLOWED_ORIGINS: https://customer.${DEPLOY_DOMAIN:?Set DEPLOY_DOMAIN in .env},https://pos.${DEPLOY_DOMAIN:?Set DEPLOY_DOMAIN in .env},https://kds.${DEPLOY_DOMAIN:?Set DEPLOY_DOMAIN in .env},https://admin.${DEPLOY_DOMAIN:?Set DEPLOY_DOMAIN in .env}
-      SPRING_FORWARD_HEADERS_STRATEGY: framework
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
       MANAGEMENT_SERVER_ADDRESS: "127.0.0.1"
       MANAGEMENT_SERVER_PORT: "8081"
       CUSTOMER_PUBLIC_BASE_URL: https://customer.${DEPLOY_DOMAIN:?Set DEPLOY_DOMAIN in .env}
